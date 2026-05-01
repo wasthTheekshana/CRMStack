@@ -1,0 +1,365 @@
+import { useState, useMemo } from 'react'
+import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
+import { LeadForm } from '@/components/leads/LeadForm'
+import { ImportLeadsModal } from '@/components/leads/ImportLeadsModal'
+import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
+import { DealModal } from '@/components/kanban/DealModal'
+import { useLeads } from '@/hooks/useLeads'
+import { useIsAdmin } from '@/store/authStore'
+import { Lead } from '@/types'
+import { formatCurrency } from '@/lib/utils/formatters'
+import { getRiskLevel } from '@/config/constants'
+import { useSalesStages, useStageColor } from '@/store/tenantStore'
+
+export function LeadsPage() {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [stageFilter, setStageFilter] = useState<string>('all')
+  const [solutionFilter, setSolutionFilter] = useState<string>('all')
+  const [showNewLeadForm, setShowNewLeadForm] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+
+  const { leads, isLoading, createLead, updateLead, deleteLead, refetch } = useLeads()
+  const salesStages = useSalesStages()
+  const getStageColor = useStageColor()
+
+  // Get unique solutions from actual leads data
+  const uniqueSolutions = useMemo(() => {
+    const solutions = new Set<string>()
+    leads.forEach(lead => {
+      if (lead.solution) {
+        solutions.add(lead.solution)
+      }
+    })
+    return Array.from(solutions).sort()
+  }, [leads])
+  const isAdmin = useIsAdmin()
+
+  // Filter leads
+  const filteredLeads = useMemo(() => {
+    return leads.filter((lead) => {
+      // Get primary contact name or first contact name
+      const primaryContact = lead.contacts?.find(c => c.isPrimary) || lead.contacts?.[0]
+      const contactName = primaryContact?.name || lead.contactName || ''
+
+      const matchesSearch =
+        lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.solution.toLowerCase().includes(searchTerm.toLowerCase())
+
+      const matchesStage = stageFilter === 'all' || lead.salesStage === stageFilter
+      const matchesSolution = solutionFilter === 'all' || lead.solution === solutionFilter
+
+      return matchesSearch && matchesStage && matchesSolution
+    })
+  }, [leads, searchTerm, stageFilter, solutionFilter])
+
+  const handleLeadClick = (lead: Lead) => {
+    setSelectedLead(lead)
+    setModalOpen(true)
+  }
+
+  const clearFilters = () => {
+    setStageFilter('all')
+    setSolutionFilter('all')
+    setSearchTerm('')
+  }
+
+  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== ''
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 md:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold">Leads</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your leads and opportunities
+          </p>
+        </div>
+        {isAdmin && (
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
+        )}
+        <Button onClick={() => setShowNewLeadForm(true)} className="w-full sm:w-auto">
+          <Plus className="h-4 w-4 mr-2" />
+          New Lead
+        </Button>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="space-y-3">
+        {/* Search bar with filter button on mobile */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search leads..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Mobile filter button */}
+          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="md:hidden relative">
+                <Filter className="h-4 w-4" />
+                {hasActiveFilters && (
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary" />
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[300px]">
+              <SheetHeader>
+                <SheetTitle>Filters</SheetTitle>
+              </SheetHeader>
+              <div className="space-y-4 mt-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Sales Stage</label>
+                  <Select value={stageFilter} onValueChange={setStageFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Stages" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Stages</SelectItem>
+                      {salesStages.map((stage) => (
+                        <SelectItem key={stage.name} value={stage.name}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Solution</label>
+                  <Select value={solutionFilter} onValueChange={setSolutionFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Solutions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Solutions</SelectItem>
+                      {uniqueSolutions.map((solution) => (
+                        <SelectItem key={solution} value={solution}>
+                          {solution}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {hasActiveFilters && (
+                  <Button variant="ghost" onClick={clearFilters} className="w-full">
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Desktop filters */}
+        <div className="hidden md:flex gap-3">
+          <Select value={stageFilter} onValueChange={setStageFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by stage" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stages</SelectItem>
+              {salesStages.map((stage) => (
+                <SelectItem key={stage.name} value={stage.name}>
+                  {stage.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={solutionFilter} onValueChange={setSolutionFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by solution" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Solutions</SelectItem>
+              {uniqueSolutions.map((solution) => (
+                <SelectItem key={solution} value={solution}>
+                  {solution}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Results count */}
+      <p className="text-sm text-muted-foreground">
+        Showing {filteredLeads.length} of {leads.length} leads
+      </p>
+
+      {/* Leads Grid - responsive columns */}
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredLeads.map((lead) => {
+          const risk = getRiskLevel(lead.probability)
+          return (
+            <Card
+              key={lead.id}
+              className="cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]"
+              onClick={() => handleLeadClick(lead)}
+            >
+              <CardContent className="p-3 md:p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <h3 className="font-semibold truncate text-sm md:text-base">{lead.companyName}</h3>
+                    </div>
+                    <p className="text-xs md:text-sm text-muted-foreground truncate">{lead.solution}</p>
+                  </div>
+                  <Badge
+                    className="text-xs flex-shrink-0"
+                    style={{
+                      backgroundColor: `${getStageColor(lead.salesStage)}20`,
+                      borderColor: getStageColor(lead.salesStage),
+                      color: getStageColor(lead.salesStage),
+                    }}
+                    variant="outline"
+                  >
+                    {lead.salesStage}
+                  </Badge>
+                </div>
+
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs md:text-sm">
+                    <span className="text-muted-foreground">Contact:</span>
+                    <span className="truncate">{lead.contactName}</span>
+                  </div>
+                  {lead.contactNumber && (
+                    <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      <span>{lead.contactNumber}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-2" onClick={e => e.stopPropagation()}>
+                  {isAdmin ? (
+                    <ReassignOwnerSelect
+                      leadId={lead.id}
+                      currentOwnerId={lead.ownerId}
+                      onReassigned={(updated) =>
+                        updateLead(updated.id, {
+                          ownerId: updated.ownerId,
+                          ownerEmail: updated.ownerEmail,
+                        })
+                      }
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs md:text-sm">
+                      <span className="text-muted-foreground">Owner:</span>
+                      <span className="truncate">{lead.ownerEmail}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="font-semibold text-base md:text-lg">
+                    {formatCurrency(lead.estimatedRevenue)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-2 w-12 md:w-16 bg-muted rounded-full overflow-hidden"
+                      title={`${lead.probability}% probability`}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${lead.probability}%`,
+                          backgroundColor: risk.color,
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs md:text-sm font-medium">{lead.probability}%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {filteredLeads.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No leads found matching your criteria</p>
+          {hasActiveFilters && (
+            <Button variant="link" onClick={clearFilters} className="mt-2">
+              Clear filters
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* New Lead Form */}
+      <LeadForm
+        open={showNewLeadForm}
+        onClose={() => setShowNewLeadForm(false)}
+        onSave={createLead}
+      />
+
+      <ImportLeadsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onComplete={() => {
+          setImportOpen(false)
+          refetch()
+        }}
+      />
+
+      {/* Edit Lead Modal */}
+      <DealModal
+        lead={selectedLead}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setSelectedLead(null)
+        }}
+        onSave={updateLead}
+        onDelete={isAdmin ? deleteLead : undefined}
+      />
+    </div>
+  )
+}
