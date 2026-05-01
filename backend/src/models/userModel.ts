@@ -122,3 +122,12 @@ export async function findUserByEmailInTenant(
     displayName: result.rows[0].display_name as string,
   } : null;
 }
+
+export async function findAdminsByTenant(tenantId: string) {
+  const result = await query(
+    `SELECT id, email, display_name FROM users
+     WHERE tenant_id = $1 AND role = 'admin' AND is_active = TRUE`,
+    [tenantId]
+  );
+  return result.rows as { id: string; email: string; display_name: string }[];
+}
