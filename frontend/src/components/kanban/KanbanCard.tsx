@@ -45,7 +45,7 @@ export function KanbanCard({ lead, onClick, onLeadUpdated }: KanbanCardProps) {
         'cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98]',
         isDragging && 'opacity-50 shadow-lg'
       )}
-      onClick={onClick}
+      onClick={() => { setPopoverOpen(false); onClick(); }}
     >
       <CardContent className="p-2.5 md:p-3">
         <div className="flex items-start gap-1.5 md:gap-2">
