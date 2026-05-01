@@ -306,7 +306,6 @@ export function SATenantDetailPage() {
               )}
             </tbody>
           </table>
-          <ChangePasswordModal user={pwTarget} onClose={() => setPwTarget(null)} />
         </CardContent>
       </Card>
 
@@ -375,6 +374,8 @@ export function SATenantDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ChangePasswordModal user={pwTarget} onClose={() => setPwTarget(null)} />
     </div>
   )
 }
