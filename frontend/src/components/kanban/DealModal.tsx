@@ -28,6 +28,7 @@ import { Lead, SalesStage, Contact } from '@/types'
 import { useSalesStages, useSolutions, useDefaultProbability } from '@/store/tenantStore'
 import { useIsAdmin } from '@/store/authStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
+import { LeadExpiryPanel } from '@/components/leads/LeadExpiryPanel'
 
 import { cn } from '@/lib/utils/cn'
 
@@ -508,6 +509,15 @@ export function DealModal({
                   {ownerState?.ownerEmail ?? lead.ownerEmail}
                 </span>
               )}
+            </div>
+
+            <div className="space-y-2 col-span-2">
+              <Label>Timeline</Label>
+              <LeadExpiryPanel
+                leadId={lead.id}
+                ownerId={ownerState?.ownerId ?? lead.ownerId}
+                createdAt={lead.createdAt ?? new Date().toISOString()}
+              />
             </div>
           </div>
 
