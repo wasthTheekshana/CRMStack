@@ -220,7 +220,7 @@ export async function reassignLeadHandler(req: Request, res: Response) {
       res.status(404).json({ error: 'Lead not found' }); return;
     }
 
-    notifyLeadAssigned({
+    void notifyLeadAssigned({
       tenantId:    req.user!.tenantId,
       assigneeId:  newOwner.id  as string,
       actorId:     req.user!.userId,
