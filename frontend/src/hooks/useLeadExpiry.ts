@@ -9,7 +9,7 @@ export function useLeadExpiry() {
   const [expiryMap, setExpiryMap] = useState<ExpiryMap>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const isMountedRef = useRef(true)
+  const isMountedRef = useRef(false)
 
   const fetchExpiry = useCallback(async () => {
     setIsLoading(true)
