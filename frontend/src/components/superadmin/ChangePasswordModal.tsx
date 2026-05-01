@@ -23,6 +23,7 @@ export function ChangePasswordModal({ user, onClose }: Props) {
   const valid = newPassword.length >= 8 && newPassword === confirmPassword
 
   const handleClose = () => {
+    if (loading) return
     setNewPassword('')
     setConfirmPassword('')
     setCopied(false)
@@ -85,7 +86,7 @@ export function ChangePasswordModal({ user, onClose }: Props) {
           <div className="space-y-1">
             <Label className="text-slate-400">Confirm Password</Label>
             <Input
-              type="text"
+              type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="bg-slate-700 border-slate-600 text-white"
@@ -96,7 +97,7 @@ export function ChangePasswordModal({ user, onClose }: Props) {
             )}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" className="text-slate-400" onClick={handleClose}>
+            <Button variant="ghost" className="text-slate-400" onClick={handleClose} disabled={loading}>
               Cancel
             </Button>
             <Button
