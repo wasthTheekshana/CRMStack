@@ -39,7 +39,8 @@ export function LeadsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
 
-  const { leads, isLoading, createLead, updateLead, deleteLead, refetch } = useLeads()
+  const { leads, isLoading, createLead, updateLead, deleteLead, reassignLead, refetch } = useLeads()
+  const isAdmin = useIsAdmin()
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
 
@@ -53,7 +54,6 @@ export function LeadsPage() {
     })
     return Array.from(solutions).sort()
   }, [leads])
-  const isAdmin = useIsAdmin()
 
   // Filter leads
   const filteredLeads = useMemo(() => {
@@ -281,12 +281,9 @@ export function LeadsPage() {
                     <ReassignOwnerSelect
                       leadId={lead.id}
                       currentOwnerId={lead.ownerId}
-                      onReassigned={(updated) =>
-                        updateLead(updated.id, {
-                          ownerId: updated.ownerId,
-                          ownerEmail: updated.ownerEmail,
-                        })
-                      }
+                      onReassigned={(updated) => {
+                        reassignLead(updated.id, updated.ownerId).catch(() => {})
+                      }}
                     />
                   ) : (
                     <div className="flex items-center gap-2 text-xs md:text-sm">
