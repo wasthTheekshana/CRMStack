@@ -498,12 +498,13 @@ export function DealModal({
                   currentOwnerId={ownerState?.ownerId ?? lead.ownerId}
                   onReassigned={(updated) => {
                     setOwnerState({ ownerId: updated.ownerId, ownerEmail: updated.ownerEmail })
+                    onClose()
                   }}
                 />
               ) : (
-                <p className="text-sm text-muted-foreground py-1">
+                <span className="text-sm text-muted-foreground py-1">
                   {ownerState?.ownerEmail ?? lead.ownerEmail}
-                </p>
+                </span>
               )}
             </div>
           </div>
