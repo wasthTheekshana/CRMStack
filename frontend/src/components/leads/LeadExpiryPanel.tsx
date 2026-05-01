@@ -39,12 +39,13 @@ export function LeadExpiryPanel({ leadId, ownerId, createdAt, onChanged }: Props
 
   const daysOpen = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000)
 
-  const daysUntil: number | null = expiry
-    ? Math.round(
-        (new Date(expiry.expiryDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) /
-          86_400_000
-      )
-    : null
+  let daysUntil: number | null = null
+  if (expiry) {
+    const [y, m, d] = expiry.expiryDate.split('-').map(Number)
+    const expiryMidnight = new Date(y, m - 1, d).getTime()
+    const todayMidnight  = new Date(new Date().setHours(0, 0, 0, 0)).getTime()
+    daysUntil = Math.round((expiryMidnight - todayMidnight) / 86_400_000)
+  }
 
   const handleSave = async () => {
     if (!dateValue) return
@@ -52,6 +53,7 @@ export function LeadExpiryPanel({ leadId, ownerId, createdAt, onChanged }: Props
     try {
       const updated = await setLeadExpiry(leadId, dateValue)
       setExpiry(updated)
+      setDateValue(updated.expiryDate)
       onChanged?.()
     } catch {
       toast.error('Failed to set expiry date')
@@ -74,31 +76,35 @@ export function LeadExpiryPanel({ leadId, ownerId, createdAt, onChanged }: Props
     }
   }
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>
-
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
         Open for {daysOpen} day{daysOpen === 1 ? '' : 's'}
       </p>
-      <ExpiryBadge daysUntil={daysUntil} />
-      {canEdit && (
-        <div className="flex items-center gap-2 pt-1">
-          <input
-            type="date"
-            value={dateValue}
-            onChange={e => setDateValue(e.target.value)}
-            className="border rounded px-2 py-1 text-sm"
-          />
-          <Button size="sm" onClick={handleSave} disabled={saving || !dateValue}>
-            {expiry ? 'Update Expiry' : 'Set Expiry'}
-          </Button>
-          {expiry && (
-            <Button size="sm" variant="ghost" onClick={handleRemove} disabled={saving}>
-              Remove
-            </Button>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <>
+          <ExpiryBadge daysUntil={daysUntil} />
+          {canEdit && (
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="date"
+                value={dateValue}
+                onChange={e => setDateValue(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+              <Button size="sm" onClick={handleSave} disabled={saving || !dateValue}>
+                {expiry ? 'Update Expiry' : 'Set Expiry'}
+              </Button>
+              {expiry && (
+                <Button size="sm" variant="ghost" onClick={handleRemove} disabled={saving}>
+                  Remove
+                </Button>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   )
