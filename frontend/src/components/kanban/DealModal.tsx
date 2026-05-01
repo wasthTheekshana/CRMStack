@@ -78,6 +78,8 @@ export function DealModal({
   useEffect(() => {
     if (lead) {
       setOwnerState({ ownerId: lead.ownerId, ownerEmail: lead.ownerEmail })
+    } else {
+      setOwnerState(null)
     }
   }, [lead])
 
@@ -497,8 +499,8 @@ export function DealModal({
                   leadId={lead.id}
                   currentOwnerId={ownerState?.ownerId ?? lead.ownerId}
                   onReassigned={(updated) => {
+                    // ReassignOwnerSelect already persisted the change; sync display state.
                     setOwnerState({ ownerId: updated.ownerId, ownerEmail: updated.ownerEmail })
-                    onClose()
                   }}
                 />
               ) : (
