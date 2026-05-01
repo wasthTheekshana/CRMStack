@@ -9,7 +9,7 @@ import {
   softDeleteLead,
   restoreLead,
 } from '../models/leadModel';
-import { findUserById } from '../models/userModel';
+import { findUserByIdInTenant } from '../models/userModel';
 import {
   notifyLeadAssigned,
   notifyLeadStageChanged,
@@ -207,8 +207,8 @@ export async function reassignLeadHandler(req: Request, res: Response) {
       res.json(existing); return;
     }
 
-    const newOwner = await findUserById(ownerId);
-    if (!newOwner || newOwner.tenantId !== req.user!.tenantId || !newOwner.isActive) {
+    const newOwner = await findUserByIdInTenant(ownerId, req.user!.tenantId);
+    if (!newOwner || !newOwner.isActive) {
       res.status(400).json({ error: 'Invalid owner: user not found or not in this tenant' }); return;
     }
 
