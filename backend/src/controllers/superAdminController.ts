@@ -337,22 +337,18 @@ export async function resetUserPassword(req: Request, res: Response) {
     res.status(400).json({ error: 'tempPassword required (min 6 chars)' }); return;
   }
   try {
-    const userCheck = await query(
-      `SELECT role FROM users WHERE id = $1`,
-      [id]
-    );
-    if (!userCheck.rows.length) {
-      res.status(404).json({ error: 'User not found' }); return;
-    }
-    if (userCheck.rows[0].role !== 'admin') {
-      res.status(403).json({ error: 'Password can only be changed for admin users' }); return;
-    }
-
     const passwordHash = await bcrypt.hash(tempPassword, 12);
     const result = await query(
-      `UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, email, display_name`,
+      `UPDATE users SET password_hash = $1 WHERE id = $2 AND role = 'admin' RETURNING id, email, display_name`,
       [passwordHash, id]
     );
+    if (!result.rows.length) {
+      const exists = await query(`SELECT 1 FROM users WHERE id = $1`, [id]);
+      if (!exists.rows.length) {
+        res.status(404).json({ error: 'User not found' }); return;
+      }
+      res.status(403).json({ error: 'Password can only be changed for admin users' }); return;
+    }
     res.json({ updated: true, userId: result.rows[0].id, email: result.rows[0].email,
                displayName: result.rows[0].display_name });
   } catch (err) {
