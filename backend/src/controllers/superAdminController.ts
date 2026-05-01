@@ -333,8 +333,8 @@ export async function searchUsers(req: Request, res: Response) {
 export async function resetUserPassword(req: Request, res: Response) {
   const { id } = req.params;
   const { tempPassword } = req.body;
-  if (!tempPassword || tempPassword.length < 6) {
-    res.status(400).json({ error: 'tempPassword required (min 6 chars)' }); return;
+  if (!tempPassword || tempPassword.length < 8) {
+    res.status(400).json({ error: 'tempPassword required (min 8 chars)' }); return;
   }
   try {
     const passwordHash = await bcrypt.hash(tempPassword, 12);
