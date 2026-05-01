@@ -11,14 +11,17 @@ import { getRiskLevel } from '@/config/constants'
 import { cn } from '@/lib/utils/cn'
 import { useIsAdmin } from '@/store/authStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
+import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
+import { ExpiryMap } from '@/services/leadExpiryService'
 
 interface KanbanCardProps {
   lead: Lead
   onClick: () => void
   onLeadUpdated?: (updated: { id: string; ownerId: string; ownerEmail: string }) => void
+  expiryMap?: ExpiryMap
 }
 
-export function KanbanCard({ lead, onClick, onLeadUpdated }: KanbanCardProps) {
+export function KanbanCard({ lead, onClick, onLeadUpdated, expiryMap }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -36,6 +39,7 @@ export function KanbanCard({ lead, onClick, onLeadUpdated }: KanbanCardProps) {
   const risk = getRiskLevel(lead.probability)
   const isAdmin = useIsAdmin()
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const expiryData = expiryMap?.[lead.id]
 
   return (
     <Card
@@ -131,6 +135,10 @@ export function KanbanCard({ lead, onClick, onLeadUpdated }: KanbanCardProps) {
                   {lead.ownerEmail}
                 </span>
               )}
+            </div>
+
+            <div className="mt-1.5 md:mt-2">
+              <ExpiryBadge daysUntil={expiryData?.daysUntil ?? null} />
             </div>
           </div>
         </div>

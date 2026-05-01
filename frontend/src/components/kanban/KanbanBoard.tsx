@@ -13,7 +13,8 @@ import { arrayMove } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
 import { AlertCircle, X } from 'lucide-react'
 import { Lead, SalesStage } from '@/types'
-import { useSalesStages } from '@/store/tenantStore'
+import { useSalesStages, useDefaultProbability } from '@/store/tenantStore'
+import { useLeadExpiry } from '@/hooks/useLeadExpiry'
 import { KanbanColumn } from './KanbanColumn'
 import { KanbanCard } from './KanbanCard'
 import { DealModal } from './DealModal'
@@ -21,7 +22,7 @@ import { Button } from '@/components/ui/button'
 
 interface KanbanBoardProps {
   leads: Lead[]
-  onStageChange: (leadId: string, newStage: SalesStage) => Promise<unknown>
+  onStageChange: (leadId: string, newStage: SalesStage, probability?: number) => Promise<unknown>
   onLeadUpdate: (leadId: string, data: Partial<Lead>) => Promise<unknown>
   onLeadDelete?: (leadId: string) => Promise<unknown>
   onPositionChange?: (leadId: string, newPosition: number, stage: SalesStage) => Promise<unknown>
@@ -35,6 +36,8 @@ export function KanbanBoard({
   onPositionChange,
 }: KanbanBoardProps) {
   const salesStages = useSalesStages()
+  const getDefaultProbability = useDefaultProbability()
+  const { expiryMap } = useLeadExpiry()
   const [leads, setLeads] = useState<Lead[]>(leadsProp)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -163,7 +166,7 @@ export function KanbanBoard({
       // Clear any previous error
       setStageError(null)
       try {
-        await onStageChange(leadId, newStage)
+        await onStageChange(leadId, newStage, getDefaultProbability(newStage))
         toast.success(`Moved to ${newStage}`)
       } catch (error) {
         console.error('Error changing stage:', error)
@@ -217,6 +220,7 @@ export function KanbanBoard({
               leads={leadsByStage[stage.name] || []}
               onLeadClick={handleLeadClick}
               onLeadUpdated={handleLeadUpdated}
+              expiryMap={expiryMap}
             />
           ))}
         </div>

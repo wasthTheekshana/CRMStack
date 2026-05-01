@@ -4,6 +4,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { Lead } from '@/types'
+import { ExpiryMap } from '@/services/leadExpiryService'
 import { KanbanCard } from './KanbanCard'
 import { formatCompactNumber } from '@/lib/utils/formatters'
 import { cn } from '@/lib/utils/cn'
@@ -16,9 +17,10 @@ interface KanbanColumnProps {
   leads: Lead[]
   onLeadClick: (lead: Lead) => void
   onLeadUpdated: (updated: { id: string; ownerId: string; ownerEmail: string }) => void
+  expiryMap: ExpiryMap
 }
 
-export function KanbanColumn({ stage, leads, onLeadClick, onLeadUpdated }: KanbanColumnProps) {
+export function KanbanColumn({ stage, leads, onLeadClick, onLeadUpdated, expiryMap }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.name,
   })
@@ -69,6 +71,7 @@ export function KanbanColumn({ stage, leads, onLeadClick, onLeadUpdated }: Kanba
               lead={lead}
               onClick={() => onLeadClick(lead)}
               onLeadUpdated={onLeadUpdated}
+              expiryMap={expiryMap}
             />
           ))}
         </SortableContext>
