@@ -33,18 +33,34 @@ export function ReassignOwnerSelect({ leadId, currentOwnerId, onReassigned }: Pr
     getAllUsers()
       .then((users) => {
         const active = users
-          .filter((u) => u.isActive !== false)
+          .filter((u) => u.isActive === true)
           .map((u) => ({
             id:          (u.uid || u.id) as string,
             displayName: (u.displayName || u.email) as string,
             email:       u.email as string,
             role:        u.role  as string,
           }))
+
+        // If current owner is inactive, inject them as the first entry so the
+        // Select can show a valid pre-selection rather than a blank placeholder.
+        const alreadyIncluded = active.some((m) => m.id === currentOwnerId)
+        if (!alreadyIncluded) {
+          const currentOwner = users.find((u) => (u.uid || u.id) === currentOwnerId)
+          if (currentOwner) {
+            active.unshift({
+              id:          (currentOwner.uid || currentOwner.id) as string,
+              displayName: `${currentOwner.displayName || currentOwner.email} (inactive)`,
+              email:       currentOwner.email as string,
+              role:        currentOwner.role  as string,
+            })
+          }
+        }
+
         setMembers(active)
       })
       .catch(() => toast.error('Failed to load team members'))
       .finally(() => setFetching(false))
-  }, [])
+  }, [currentOwnerId])
 
   const handleChange = async (newOwnerId: string) => {
     if (newOwnerId === currentOwnerId) return
