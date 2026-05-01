@@ -76,9 +76,14 @@ export function useLeads() {
   }, [])
 
   const reassignLead = useCallback(async (leadId: string, ownerId: string) => {
-    const updated = await reassignLeadFn(leadId, ownerId)
-    setLeads(prev => prev.map(l => l.id === leadId ? updated : l))
-    return updated
+    try {
+      const updated = await reassignLeadFn(leadId, ownerId)
+      setLeads(prev => prev.map(l => l.id === leadId ? updated : l))
+      return updated
+    } catch (err) {
+      setError((err as Error).message)
+      throw err
+    }
   }, [])
 
   const deleteLead = useCallback(async (id: string) => {
