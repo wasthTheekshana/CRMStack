@@ -57,7 +57,7 @@ export function ChangePasswordModal({ user, onClose }: Props) {
           <DialogTitle className="text-white">Change Password</DialogTitle>
           <DialogDescription className="text-slate-400">
             Set a new password for{' '}
-            <span className="text-white font-medium">{user?.email}</span>
+            <strong className="text-white">{user?.email}</strong>
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-2">
