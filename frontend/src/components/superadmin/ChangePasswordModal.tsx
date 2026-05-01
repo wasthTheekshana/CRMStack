@@ -66,7 +66,7 @@ export function ChangePasswordModal({ user, onClose }: Props) {
             <Label className="text-slate-400">New Password</Label>
             <div className="flex gap-2">
               <Input
-                type="text"
+                type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="bg-slate-700 border-slate-600 text-white"
