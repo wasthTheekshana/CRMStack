@@ -10,15 +10,24 @@ import {
 } from '@/components/ui/select'
 import { parseSpreadsheet, autoMapColumns, CRM_FIELD_LABELS } from '@/lib/importParser'
 import type { ColumnMapping, ParsedSpreadsheet, CrmField, StandardCrmField } from '@/lib/importParser'
-import { useCustomFields } from '@/store/tenantStore'
+import { useCustomFields, useVisibleFields } from '@/store/tenantStore'
 
 const MAX_ROWS = 1000
 const MAX_FILE_BYTES = 5 * 1024 * 1024
 
-const STANDARD_FIELDS: StandardCrmField[] = [
-  'companyName', 'solution', 'salesStage', 'estimatedRevenue', 'probability',
-  'remarks', 'hoUpdate', 'imageCount', 'boxCount',
+// Core fields that are always available regardless of visibility settings
+const CORE_FIELDS: StandardCrmField[] = [
+  'companyName', 'solution', 'salesStage', 'estimatedRevenue',
   'contactName', 'contactPhone', 'contactEmail', 'ownerEmail',
+]
+
+// Optional standard fields that can be hidden per tenant workspace settings
+const OPTIONAL_FIELDS: { field: StandardCrmField; visibilityKey: string }[] = [
+  { field: 'probability', visibilityKey: 'probability' },
+  { field: 'remarks',     visibilityKey: 'remarks'     },
+  { field: 'hoUpdate',    visibilityKey: 'hoUpdate'    },
+  { field: 'imageCount',  visibilityKey: 'imageCount'  },
+  { field: 'boxCount',    visibilityKey: 'boxCount'    },
 ]
 
 interface Props {
@@ -32,7 +41,16 @@ export function ImportStep1Upload({ onNext }: Props) {
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const customFields = useCustomFields()
+  const customFields  = useCustomFields()
+  const visibleFields = useVisibleFields()
+
+  // Build the list of active standard fields for this tenant
+  const activeStandardFields: StandardCrmField[] = [
+    ...CORE_FIELDS,
+    ...OPTIONAL_FIELDS
+      .filter(({ visibilityKey }) => visibleFields[visibilityKey] !== false)
+      .map(({ field }) => field),
+  ]
 
   const handleFile = async (file: File) => {
     setError(null)
@@ -55,7 +73,7 @@ export function ImportStep1Upload({ onNext }: Props) {
         setError('The file appears to be empty.')
         return
       }
-      const auto = autoMapColumns(result.headers, customFields)
+      const auto = autoMapColumns(result.headers, customFields, activeStandardFields)
       setParsed(result)
       setMapping(auto)
     } catch {
@@ -151,11 +169,11 @@ export function ImportStep1Upload({ onNext }: Props) {
                           <SelectContent>
                             <SelectItem value="__none__">Don't import</SelectItem>
 
-                            {/* Standard CRM fields */}
+                            {/* Standard CRM fields — filtered by this tenant's visibility settings */}
                             <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                               Standard Fields
                             </div>
-                            {STANDARD_FIELDS.map(f => (
+                            {activeStandardFields.map(f => (
                               <SelectItem key={f} value={f}>
                                 {CRM_FIELD_LABELS[f]}
                                 {f === 'companyName' && ' *'}

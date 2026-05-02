@@ -61,7 +61,8 @@ const STANDARD_ALIASES: { keywords: string[]; field: StandardCrmField }[] = [
 
 export function autoMapColumns(
   headers: string[],
-  customFields: { id: string; name: string }[] = []
+  customFields: { id: string; name: string }[] = [],
+  allowedStandardFields?: StandardCrmField[]
 ): ColumnMapping {
   const mapping: ColumnMapping = {};
   const used = new Set<CrmField>();
@@ -70,8 +71,9 @@ export function autoMapColumns(
     const lower = header.toLowerCase().trim();
     let matched: CrmField | null = null;
 
-    // 1. Check standard fields
+    // 1. Check standard fields (filtered to allowed set if provided)
     for (const { keywords, field } of STANDARD_ALIASES) {
+      if (allowedStandardFields && !allowedStandardFields.includes(field)) continue;
       if (used.has(field)) continue;
       if (keywords.some(k => lower.includes(k))) {
         matched = field;
