@@ -17,6 +17,38 @@ import {
   notifyLeadRestored,
 } from '../services/notificationService';
 
+const MAX_STR = 500; // max length for standard string fields
+const MAX_CUSTOM_KEYS = 50;
+const MAX_CUSTOM_VALUE_LEN = 1000;
+
+function validateLeadFields(body: Record<string, unknown>): string | null {
+  const strFields = ['companyName', 'solution', 'salesStage', 'remarks', 'hoUpdate', 'position', 'ownerEmail'] as const;
+  for (const field of strFields) {
+    const val = body[field];
+    if (typeof val === 'string' && val.length > MAX_STR) {
+      return `${field} must be at most ${MAX_STR} characters`;
+    }
+  }
+
+  if (body.customFields != null) {
+    if (typeof body.customFields !== 'object' || Array.isArray(body.customFields)) {
+      return 'customFields must be an object';
+    }
+    const cf = body.customFields as Record<string, unknown>;
+    if (Object.keys(cf).length > MAX_CUSTOM_KEYS) {
+      return `customFields must have at most ${MAX_CUSTOM_KEYS} keys`;
+    }
+    for (const [key, value] of Object.entries(cf)) {
+      if (key.length > 100) return 'customFields key too long';
+      if (typeof value === 'string' && value.length > MAX_CUSTOM_VALUE_LEN) {
+        return `customFields value for "${key}" too long`;
+      }
+    }
+  }
+
+  return null; // valid
+}
+
 export async function listLeads(req: Request, res: Response) {
   try {
     const leads = await findAllLeads(req.user!.userId, req.user!.tenantId, req.user!.role === 'admin');
@@ -60,6 +92,12 @@ export async function createLeadHandler(req: Request, res: Response) {
 
   if (!companyName || !solution || !salesStage) {
     res.status(400).json({ error: 'companyName, solution, salesStage required' });
+    return;
+  }
+
+  const validationError = validateLeadFields(req.body);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
     return;
   }
 
@@ -109,6 +147,12 @@ export async function updateLeadHandler(req: Request, res: Response) {
 
     if (req.user!.role === 'sales' && existingLead.ownerId !== req.user!.userId) {
       res.status(403).json({ error: 'Access denied' }); return;
+    }
+
+    const validationError = validateLeadFields(req.body);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
+      return;
     }
 
     const lead = await updateLead(req.params.id, req.user!.tenantId, {
