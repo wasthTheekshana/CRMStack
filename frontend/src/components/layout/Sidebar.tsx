@@ -149,15 +149,15 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg overflow-hidden flex-shrink-0 bg-primary flex items-center justify-center">
+          <div className="h-8 w-8 flex-shrink-0 flex items-center justify-center">
             <img
               src={logoUrl}
               alt={companyName}
-              className="h-full w-full object-contain"
+              className="h-8 w-8 object-contain"
               onError={(e) => {
                 const target = e.currentTarget
                 target.style.display = 'none'
-                target.parentElement!.innerHTML = `<span class="text-lg font-bold text-white">${companyLetter}</span>`
+                target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-lg bg-primary flex items-center justify-center"><span class="text-lg font-bold text-white">${companyLetter}</span></div>`
               }}
             />
           </div>
