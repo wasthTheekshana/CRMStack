@@ -64,8 +64,9 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
   const { userProfile } = useAuthStore()
   const { settings } = useDashboardStore()
   const branding = useBranding()
-  const companyName   = branding.companyName  || 'CRM STACK'
+  const companyName = branding.companyName || 'CRM STACK'
   const companyLetter = companyName.charAt(0).toUpperCase()
+  const logoUrl = branding.logoUrl || '/crmstack_logo.png'
 
   // Check navigation visibility from settings
   const showSalesTargets = settings.navigation?.salesTargets !== false
@@ -148,8 +149,17 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-bold text-white">{companyLetter}</span>
+          <div className="h-8 w-8 rounded-lg overflow-hidden flex-shrink-0 bg-primary flex items-center justify-center">
+            <img
+              src={logoUrl}
+              alt={companyName}
+              className="h-full w-full object-contain"
+              onError={(e) => {
+                const target = e.currentTarget
+                target.style.display = 'none'
+                target.parentElement!.innerHTML = `<span class="text-lg font-bold text-white">${companyLetter}</span>`
+              }}
+            />
           </div>
           {showLabels && (
             <span className="text-xl font-bold text-foreground">{companyName}</span>

@@ -92,8 +92,8 @@ export function useLeads() {
   }, [])
 
   const updateLeadStage = useCallback(
-    async (id: string, newStage: SalesStage) => {
-      const updated = await updateLeadFn(id, { salesStage: newStage })
+    async (id: string, newStage: SalesStage, probability?: number) => {
+      const updated = await updateLeadFn(id, { salesStage: newStage, ...(probability !== undefined && { probability }) })
       setLeads(prev => prev.map(l => l.id === id ? updated : l))
       return updated
     },
