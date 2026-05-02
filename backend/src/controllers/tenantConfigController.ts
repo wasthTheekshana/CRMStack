@@ -5,7 +5,7 @@ import {
   DEFAULT_STAGES,
   DEFAULT_SOLUTIONS,
 } from '../models/tenantConfigModel';
-import { renameLeadStage } from '../models/leadModel';
+import { renameLeadStage, renameLeadSolution } from '../models/leadModel';
 
 /** GET /api/tenant/config — returns the config for the requesting tenant */
 export async function getConfig(req: Request, res: Response) {
@@ -59,6 +59,18 @@ export async function updateConfig(req: Request, res: Response) {
         const oldName = existingMap.get(stage.id);
         if (oldName != null && oldName !== stage.name) {
           await renameLeadStage(tenantId, oldName, stage.name);
+        }
+      }
+    }
+
+    // Cascade solution renames to all leads before saving the new config
+    if (solutions != null) {
+      const existing = await findConfigByTenantId(tenantId);
+      const existingMap = new Map((existing?.solutions ?? DEFAULT_SOLUTIONS).map(s => [s.id, s.name]));
+      for (const solution of solutions as { id: string; name: string }[]) {
+        const oldName = existingMap.get(solution.id);
+        if (oldName != null && oldName !== solution.name) {
+          await renameLeadSolution(tenantId, oldName, solution.name);
         }
       }
     }

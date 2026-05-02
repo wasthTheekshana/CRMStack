@@ -179,3 +179,11 @@ export async function renameLeadStage(tenantId: string, oldName: string, newName
   );
   return (result as { rowCount: number }).rowCount;
 }
+
+export async function renameLeadSolution(tenantId: string, oldName: string, newName: string): Promise<number> {
+  const result = await query(
+    'UPDATE leads SET solution = $1 WHERE tenant_id = $2 AND solution = $3',
+    [newName, tenantId, oldName]
+  );
+  return (result as { rowCount: number }).rowCount;
+}
