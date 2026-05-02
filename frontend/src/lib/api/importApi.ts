@@ -14,6 +14,7 @@ export interface ImportRowInput {
   contactPhone:     string;
   contactEmail:     string;
   ownerEmail:       string;
+  customFields:     Record<string, string>;
 }
 
 export interface ParsedLeadData {

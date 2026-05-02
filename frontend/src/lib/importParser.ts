@@ -2,14 +2,18 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { ImportRowInput } from '@/lib/api/importApi';
 
-export type CrmField =
+// Standard CRM fields
+export type StandardCrmField =
   | 'companyName' | 'solution' | 'salesStage'
   | 'estimatedRevenue' | 'probability' | 'remarks' | 'hoUpdate'
   | 'imageCount' | 'boxCount'
   | 'contactName' | 'contactPhone' | 'contactEmail'
   | 'ownerEmail';
 
-export const CRM_FIELD_LABELS: Record<CrmField, string> = {
+// Custom fields use "custom:<fieldId>" keys
+export type CrmField = StandardCrmField | `custom:${string}`;
+
+export const CRM_FIELD_LABELS: Record<StandardCrmField, string> = {
   companyName:      'Company Name',
   solution:         'Solution',
   salesStage:       'Sales Stage',
@@ -34,24 +38,31 @@ export interface ParsedSpreadsheet {
   rows:    Record<string, string>[];
 }
 
-// Alias table for auto-mapping
-const ALIASES: { keywords: string[]; field: CrmField }[] = [
-  { keywords: ['company', 'organisation', 'organization', 'client', 'account'],      field: 'companyName' },
-  { keywords: ['solution', 'product', 'service', 'category'],                         field: 'solution' },
-  { keywords: ['stage', 'pipeline', 'status'],                                        field: 'salesStage' },
-  { keywords: ['revenue', 'value', 'deal value', 'amount', 'estimated'],              field: 'estimatedRevenue' },
-  { keywords: ['probability', 'chance', 'likelihood'],                                field: 'probability' },
-  { keywords: ['remark', 'note', 'comment'],                                          field: 'remarks' },
-  { keywords: ['ho update', 'head office', 'ho'],                                     field: 'hoUpdate' },
-  { keywords: ['image count', 'images', 'image'],                                     field: 'imageCount' },
-  { keywords: ['box count', 'boxes', 'box'],                                          field: 'boxCount' },
-  { keywords: ['contact name', 'contact person', 'person', 'contact'],                field: 'contactName' },
-  { keywords: ['phone', 'mobile', 'tel', 'telephone', 'contact phone'],               field: 'contactPhone' },
-  { keywords: ['contact email', 'email'],                                              field: 'contactEmail' },
-  { keywords: ['owner email', 'owner', 'assigned to', 'rep', 'sales rep'],            field: 'ownerEmail' },
+// IMPORTANT: More specific (longer) keywords must come before generic ones.
+// contactPhone and contactEmail come BEFORE contactName so "contact phone"/"contact email"
+// don't accidentally match the loose "contact" keyword.
+const STANDARD_ALIASES: { keywords: string[]; field: StandardCrmField }[] = [
+  { keywords: ['company', 'organisation', 'organization', 'client', 'account'],       field: 'companyName' },
+  { keywords: ['solution', 'product', 'service', 'category'],                          field: 'solution' },
+  { keywords: ['stage', 'pipeline', 'status'],                                         field: 'salesStage' },
+  { keywords: ['revenue', 'value', 'deal value', 'amount', 'estimated'],               field: 'estimatedRevenue' },
+  { keywords: ['probability', 'chance', 'likelihood'],                                 field: 'probability' },
+  { keywords: ['remark', 'note', 'comment'],                                           field: 'remarks' },
+  { keywords: ['ho update', 'head office', 'ho'],                                      field: 'hoUpdate' },
+  { keywords: ['image count', 'images', 'image'],                                      field: 'imageCount' },
+  { keywords: ['box count', 'boxes', 'box'],                                           field: 'boxCount' },
+  // contactPhone and contactEmail before contactName — prevents "contact" from grabbing them first
+  { keywords: ['contact phone', 'phone', 'mobile', 'tel', 'telephone'],                field: 'contactPhone' },
+  { keywords: ['contact email'],                                                        field: 'contactEmail' },
+  { keywords: ['contact name', 'contact person', 'contact', 'person'],                 field: 'contactName' },
+  { keywords: ['email'],                                                                field: 'contactEmail' },
+  { keywords: ['owner email', 'owner', 'assigned to', 'rep', 'sales rep'],             field: 'ownerEmail' },
 ];
 
-export function autoMapColumns(headers: string[]): ColumnMapping {
+export function autoMapColumns(
+  headers: string[],
+  customFields: { id: string; name: string }[] = []
+): ColumnMapping {
   const mapping: ColumnMapping = {};
   const used = new Set<CrmField>();
 
@@ -59,11 +70,24 @@ export function autoMapColumns(headers: string[]): ColumnMapping {
     const lower = header.toLowerCase().trim();
     let matched: CrmField | null = null;
 
-    for (const { keywords, field } of ALIASES) {
+    // 1. Check standard fields
+    for (const { keywords, field } of STANDARD_ALIASES) {
       if (used.has(field)) continue;
       if (keywords.some(k => lower.includes(k))) {
         matched = field;
         break;
+      }
+    }
+
+    // 2. Check admin-configured custom fields (exact name match)
+    if (!matched) {
+      for (const cf of customFields) {
+        const key: CrmField = `custom:${cf.id}`;
+        if (used.has(key)) continue;
+        if (lower === cf.name.toLowerCase().trim()) {
+          matched = key;
+          break;
+        }
       }
     }
 
@@ -80,7 +104,7 @@ export async function parseSpreadsheet(file: File): Promise<ParsedSpreadsheet> {
   if (ext === 'csv') {
     return new Promise((resolve, reject) => {
       Papa.parse<Record<string, string>>(file, {
-        header:        true,
+        header:         true,
         skipEmptyLines: true,
         complete: (result) => {
           resolve({
@@ -115,10 +139,20 @@ export function applyMapping(
   mapping: ColumnMapping
 ): ImportRowInput[] {
   return rows.map(row => {
-    const get = (field: CrmField): string => {
+    const get = (field: StandardCrmField): string => {
       const header = Object.entries(mapping).find(([, f]) => f === field)?.[0];
       return header ? (row[header] ?? '').trim() : '';
     };
+
+    // Collect custom field values
+    const customFields: Record<string, string> = {};
+    for (const [header, field] of Object.entries(mapping)) {
+      if (field?.startsWith('custom:')) {
+        const fieldId = field.slice(7);
+        const val = (row[header] ?? '').trim();
+        if (val) customFields[fieldId] = val;
+      }
+    }
 
     return {
       companyName:      get('companyName'),
@@ -134,6 +168,7 @@ export function applyMapping(
       contactPhone:     get('contactPhone'),
       contactEmail:     get('contactEmail'),
       ownerEmail:       get('ownerEmail'),
+      customFields,
     };
   });
 }

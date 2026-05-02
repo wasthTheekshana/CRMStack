@@ -20,6 +20,7 @@ interface ImportRow {
   contactPhone:     string;
   contactEmail:     string;
   ownerEmail:       string;
+  customFields?:    Record<string, string>;
 }
 
 interface ParsedRow {
@@ -35,6 +36,7 @@ interface ParsedRow {
   contacts:         { name: string; phone: string; email: string; isPrimary: boolean }[];
   ownerId:          string;
   ownerEmail:       string;
+  customFields:     Record<string, string>;
 }
 
 // ─── Helper: parse and validate a single row ──────────────────────────────────
@@ -100,6 +102,14 @@ async function parseRow(
     ? [{ name: raw.contactName.trim(), phone: raw.contactPhone?.trim() || '', email: raw.contactEmail?.trim() || '', isPrimary: true }]
     : [];
 
+  // Pass through any custom field values (string values only, keys are field IDs)
+  const customFields: Record<string, string> = {};
+  if (raw.customFields && typeof raw.customFields === 'object') {
+    for (const [k, v] of Object.entries(raw.customFields)) {
+      if (typeof v === 'string' && v.trim()) customFields[k] = v.trim();
+    }
+  }
+
   return {
     parsed: {
       companyName: String(raw.companyName ?? '').trim(),
@@ -114,6 +124,7 @@ async function parseRow(
       contacts,
       ownerId,
       ownerEmail,
+      customFields,
     },
     warnings,
   };
@@ -261,9 +272,9 @@ export async function importConfirm(req: Request, res: Response) {
         if (row.action === 'create') {
           await createLead({
             ...row.data,
-            position:   null,
+            position:     null,
             tenantId,
-            customFields: {},
+            customFields: row.data.customFields ?? {},
           });
           created++;
         } else if (row.action === 'update') {
