@@ -8,6 +8,7 @@ import {
   updateLead,
   softDeleteLead,
   restoreLead,
+  hardDeleteAllLeads,
 } from '../models/leadModel';
 import { findUserByIdInTenant } from '../models/userModel';
 import {
@@ -275,5 +276,15 @@ export async function reassignLeadHandler(req: Request, res: Response) {
   } catch (err) {
     console.error('reassignLeadHandler error:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function deleteAllLeadsHandler(req: Request, res: Response) {
+  try {
+    const count = await hardDeleteAllLeads(req.user!.tenantId);
+    res.json({ deleted: count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 }

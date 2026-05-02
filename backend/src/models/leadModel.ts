@@ -164,6 +164,14 @@ export async function restoreLead(id: string, tenantId: string) {
   return result.rows[0] ? mapLead(result.rows[0]) : null;
 }
 
+export async function hardDeleteAllLeads(tenantId: string): Promise<number> {
+  const result = await query(
+    'DELETE FROM leads WHERE tenant_id = $1',
+    [tenantId]
+  );
+  return (result as { rowCount: number }).rowCount;
+}
+
 export async function renameLeadStage(tenantId: string, oldName: string, newName: string): Promise<number> {
   const result = await query(
     'UPDATE leads SET sales_stage = $1 WHERE tenant_id = $2 AND sales_stage = $3',

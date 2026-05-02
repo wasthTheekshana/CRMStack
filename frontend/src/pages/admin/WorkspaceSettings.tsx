@@ -1,12 +1,23 @@
 import { useState, useEffect } from 'react'
-import { Settings, GitBranch, Package, ListPlus, Palette } from 'lucide-react'
+import { Settings, GitBranch, Package, ListPlus, Palette, Trash2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { PipelineSettings } from '@/components/settings/PipelineSettings'
 import { ProductSettings } from '@/components/settings/ProductSettings'
 import { LeadFieldSettings } from '@/components/settings/LeadFieldSettings'
 import { BrandingSettings } from '@/components/settings/BrandingSettings'
+import { apiFetch } from '@/config/api'
 import {
   useTenantStore,
   SalesStageConfig,
@@ -18,6 +29,9 @@ import {
 export function WorkspaceSettings() {
   const { config, loadConfig, saveConfig, isLoading } = useTenantStore()
   const [isSaving, setIsSaving] = useState(false)
+  const [showDeleteAll, setShowDeleteAll] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Local draft state — user edits locally, saves explicitly
   const [stages,        setStages]        = useState<SalesStageConfig[]>([])
@@ -38,6 +52,20 @@ export function WorkspaceSettings() {
   }, [config])
 
   useEffect(() => { loadConfig() }, [loadConfig])
+
+  const handleDeleteAllLeads = async () => {
+    setIsDeleting(true)
+    try {
+      const result = await apiFetch<{ deleted: number }>('/api/leads/all', { method: 'DELETE' })
+      toast.success(`${result.deleted} lead${result.deleted !== 1 ? 's' : ''} permanently deleted`)
+      setShowDeleteAll(false)
+      setDeleteConfirmText('')
+    } catch {
+      toast.error('Failed to delete leads')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const save = async (patch: Parameters<typeof saveConfig>[0]) => {
     setIsSaving(true)
@@ -157,6 +185,69 @@ export function WorkspaceSettings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Danger Zone */}
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          </div>
+          <CardDescription>Irreversible actions that affect all data in this workspace</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <p className="text-sm font-medium">Delete All Leads</p>
+              <p className="text-xs text-muted-foreground">Permanently removes every lead in this workspace. This cannot be undone.</p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => { setDeleteConfirmText(''); setShowDeleteAll(true) }}
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Delete All
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showDeleteAll} onOpenChange={(open) => { if (!isDeleting) { setShowDeleteAll(open); setDeleteConfirmText('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" /> Delete All Leads
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>every lead</strong> in this workspace, including deleted ones. There is no undo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Type <span className="font-mono font-semibold text-foreground">DELETE</span> to confirm
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE"
+              disabled={isDeleting}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteAll(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAllLeads}
+              disabled={deleteConfirmText !== 'DELETE' || isDeleting}
+            >
+              {isDeleting ? 'Deleting…' : 'Delete All Leads'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

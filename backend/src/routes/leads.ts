@@ -10,6 +10,7 @@ import {
   deleteLeadHandler,
   restoreLeadHandler,
   reassignLeadHandler,
+  deleteAllLeadsHandler,
 } from '../controllers/leadController';
 import {
   getBulkLeadExpiryHandler,
@@ -26,6 +27,7 @@ router.get('/expiry/bulk',   requireAuth,               getBulkLeadExpiryHandler
 router.get('/:id/expiry',    requireAuth, validateUUIDParam('id'), getLeadExpiryHandler);
 router.put('/:id/expiry',    requireAuth, validateUUIDParam('id'), setLeadExpiryHandler);
 router.delete('/:id/expiry', requireAuth, validateUUIDParam('id'), deleteLeadExpiryHandler);
+router.delete('/all',        requireAuth, requireAdmin,            deleteAllLeadsHandler);
 router.get('/:id',           requireAuth, validateUUIDParam('id'), getLead);
 router.post('/',             requireAuth,               createLeadHandler);
 router.put('/:id',           requireAuth, validateUUIDParam('id'), updateLeadHandler);
