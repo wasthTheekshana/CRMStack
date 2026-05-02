@@ -35,37 +35,88 @@ export async function login(req: Request, res: Response) {
 
 export async function getStats(_req: Request, res: Response) {
   try {
-    const result = await query(`
-      SELECT
-        COUNT(*) FILTER (WHERE status = 'active')    AS active_tenants,
-        COUNT(*) FILTER (WHERE status = 'suspended') AS suspended_tenants,
-        COUNT(*) FILTER (WHERE trial_ends_at > NOW() AND status = 'active') AS trial_tenants,
-        COUNT(*) AS total_tenants
-      FROM tenants
-    `);
-    const userResult = await query(`SELECT COUNT(*) AS total_users FROM users`);
-    const newThisMonthResult = await query(`
-      SELECT COUNT(*) AS new_this_month FROM tenants
-      WHERE created_at >= date_trunc('month', NOW())
-    `);
-    const planResult = await query(`
-      SELECT plan, COUNT(*) AS count FROM tenants WHERE status = 'active' GROUP BY plan
-    `);
+    const [
+      tenantResult,
+      userResult,
+      newThisMonthResult,
+      planResult,
+      leadsResult,
+      activitiesResult,
+      growthResult,
+      recentResult,
+    ] = await Promise.all([
+      query(`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'active')    AS active_tenants,
+          COUNT(*) FILTER (WHERE status = 'suspended') AS suspended_tenants,
+          COUNT(*) FILTER (WHERE trial_ends_at > NOW() AND status = 'active') AS trial_tenants,
+          COUNT(*) AS total_tenants
+        FROM tenants
+      `),
+      query(`SELECT COUNT(*) AS total_users FROM users`),
+      query(`
+        SELECT COUNT(*) AS new_this_month FROM tenants
+        WHERE created_at >= date_trunc('month', NOW())
+      `),
+      query(`
+        SELECT plan, COUNT(*) AS count FROM tenants WHERE status = 'active' GROUP BY plan
+      `),
+      query(`SELECT COUNT(*) AS total_leads FROM leads WHERE is_deleted = FALSE`),
+      query(`SELECT COUNT(*) AS total_activities FROM activities`),
+      query(`
+        SELECT
+          TO_CHAR(date_trunc('month', created_at), 'Mon') AS month,
+          EXTRACT(YEAR FROM created_at)::int              AS year,
+          COUNT(*)::int                                   AS count
+        FROM tenants
+        WHERE created_at >= date_trunc('month', NOW()) - INTERVAL '5 months'
+        GROUP BY date_trunc('month', created_at), month, year
+        ORDER BY date_trunc('month', created_at)
+      `),
+      query(`
+        SELECT id, name, plan, status, created_at
+        FROM tenants
+        ORDER BY created_at DESC
+        LIMIT 5
+      `),
+    ]);
+
     const planCounts: Record<string, number> = {};
-    planResult.rows.forEach((r: Record<string, unknown>) => { planCounts[r.plan as string] = Number(r.count); });
-    const PLAN_PRICE: Record<string, number> = { starter: 99, business: 249, enterprise: 599 };
+    planResult.rows.forEach((r: Record<string, unknown>) => {
+      planCounts[r.plan as string] = Number(r.count);
+    });
+
+    const PLAN_PRICE: Record<string, number> = { starter: 99, pro: 249, enterprise: 599 };
     const estimatedMRR = Object.entries(planCounts).reduce(
       (sum, [plan, count]) => sum + (PLAN_PRICE[plan] || 0) * count, 0
     );
+
+    const monthlyGrowth = growthResult.rows.map((r: Record<string, unknown>) => ({
+      month: `${r.month as string} ${r.year as number}`,
+      count: Number(r.count),
+    }));
+
+    const recentTenants = recentResult.rows.map((r: Record<string, unknown>) => ({
+      id:        r.id as string,
+      name:      r.name as string,
+      plan:      r.plan as string,
+      status:    r.status as string,
+      createdAt: r.created_at as string,
+    }));
+
     res.json({
-      activeTenants:    Number(result.rows[0].active_tenants),
-      suspendedTenants: Number(result.rows[0].suspended_tenants),
-      trialTenants:     Number(result.rows[0].trial_tenants),
-      totalTenants:     Number(result.rows[0].total_tenants),
+      active:           Number(tenantResult.rows[0].active_tenants),
+      suspended:        Number(tenantResult.rows[0].suspended_tenants),
+      trial:            Number(tenantResult.rows[0].trial_tenants),
+      total:            Number(tenantResult.rows[0].total_tenants),
       totalUsers:       Number(userResult.rows[0].total_users),
+      totalLeads:       Number(leadsResult.rows[0].total_leads),
+      totalActivities:  Number(activitiesResult.rows[0].total_activities),
       newThisMonth:     Number(newThisMonthResult.rows[0].new_this_month),
       planCounts,
       estimatedMRR,
+      monthlyGrowth,
+      recentTenants,
     });
   } catch (err) {
     console.error('SA getStats error:', err);
