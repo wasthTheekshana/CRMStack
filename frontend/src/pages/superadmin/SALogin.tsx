@@ -22,7 +22,7 @@ export function SALogin() {
     setLoading(true)
     try {
       const data = await saLogin(email, password)
-      login(data.token, data.admin)
+      login(data.admin)
       navigate('/superadmin/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')

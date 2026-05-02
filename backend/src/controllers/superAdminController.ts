@@ -1,9 +1,18 @@
-import { Request, Response } from 'express';
+import { Request, Response, CookieOptions } from 'express';
 import { randomInt } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { findAdminByEmail, updateAdminLastLogin } from '../models/dokAdminModel';
 import { query, pool } from '../config/db';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const SA_COOKIE_OPTIONS: CookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'strict' : 'lax',
+  maxAge: 12 * 60 * 60 * 1000, // 12 hours
+};
 
 // ─── Handler 1: login ────────────────────────────────────────────────────────
 
@@ -24,14 +33,26 @@ export async function login(req: Request, res: Response) {
       process.env.SA_JWT_SECRET!,
       { expiresIn: '12h' }
     );
-    res.json({ token, admin: { adminId: admin.id, email: admin.email, displayName: admin.displayName } });
+    // M7: Set SA token in httpOnly cookie
+    res.cookie('sa_auth_token', token, SA_COOKIE_OPTIONS);
+    res.json({ admin: { adminId: admin.id, email: admin.email, displayName: admin.displayName } });
   } catch (err) {
     console.error('SA login error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// ─── Handler 2: getStats ─────────────────────────────────────────────────────
+// ─── Handler 2: saLogout / saMe ──────────────────────────────────────────────
+
+export function saLogout(_req: Request, res: Response) {
+  res.clearCookie('sa_auth_token').json({ message: 'Logged out' });
+}
+
+export function saMe(req: Request, res: Response) {
+  res.json({ adminId: req.superAdmin!.adminId, email: req.superAdmin!.email });
+}
+
+// ─── Handler 3: getStats ─────────────────────────────────────────────────────
 
 export async function getStats(_req: Request, res: Response) {
   try {

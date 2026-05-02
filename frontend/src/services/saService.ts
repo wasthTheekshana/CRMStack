@@ -1,8 +1,5 @@
 import { API_BASE_URL } from '@/config/api'
 
-// ─── SA Token key ─────────────────────────────────────────────────────────────
-const SA_TOKEN_KEY = 'sa_token'
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SATenant {
@@ -47,17 +44,16 @@ export interface SAStats {
 
 // ─── Core fetch helper ────────────────────────────────────────────────────────
 
+// M7: credentials: 'include' sends the httpOnly cookie automatically — no Authorization header
 export async function saFetch<T = unknown>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem(SA_TOKEN_KEY)
-
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   })
@@ -73,7 +69,7 @@ export async function saFetch<T = unknown>(
 // ─── SA API functions ─────────────────────────────────────────────────────────
 
 export const saLogin = (email: string, password: string) =>
-  saFetch<{ token: string; admin: { adminId: string; email: string } }>('/api/super-admin/auth/login', {
+  saFetch<{ admin: { adminId: string; email: string; displayName: string } }>('/api/super-admin/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   })
@@ -99,7 +95,7 @@ export const saUpdateTenant = (id: string, data: { plan?: string; userLimit?: nu
 
 export const saExportTenantCSV = (id: string) =>
   fetch(`${API_BASE_URL}/api/super-admin/tenants/${id}/export`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem(SA_TOKEN_KEY) ?? ''}` },
+    credentials: 'include',
   })
 
 export const saDeleteTenant = (id: string) =>

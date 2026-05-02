@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { login, me, forgotPassword, verifyResetToken, resetPassword } from '../controllers/authController';
+import { login, logout, me, forgotPassword, verifyResetToken, resetPassword } from '../controllers/authController';
 
 const router = Router();
 
@@ -32,6 +32,7 @@ const resetLimiter = rateLimit({
 });
 
 router.post('/login',               loginLimiter,   login);
+router.post('/logout',              logout);
 router.get('/me',                   me);
 router.post('/forgot-password',     forgotLimiter,  forgotPassword);
 router.post('/verify-reset-token',  resetLimiter,   verifyResetToken);

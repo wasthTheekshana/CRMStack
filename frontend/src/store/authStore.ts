@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { apiFetch, tokenStorage } from '@/config/api'
+import { apiFetch } from '@/config/api'
 import { User } from '@/types'
 
 interface AuthUser {
@@ -31,6 +31,18 @@ interface AuthState {
   initialize:      () => () => void
 }
 
+function toUserProfile(user: AuthUser): User {
+  return {
+    uid:         user.id,
+    id:          user.id,
+    email:       user.email,
+    username:    user.username,
+    displayName: user.displayName,
+    role:        user.role,
+    isActive:    user.isActive,
+  } as unknown as User
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -50,7 +62,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (username, password) => {
         set({ isLoading: true, error: null })
         try {
-          const { token, user } = await apiFetch<{ token: string; user: AuthUser }>(
+          // M7: server sets httpOnly cookie; response only contains user data
+          const { user } = await apiFetch<{ user: AuthUser }>(
             '/api/auth/login',
             {
               method: 'POST',
@@ -58,21 +71,9 @@ export const useAuthStore = create<AuthState>()(
             }
           )
 
-          tokenStorage.set(token)
-
-          const userProfile: User = {
-            uid:         user.id,
-            id:          user.id,
-            email:       user.email,
-            username:    user.username,
-            displayName: user.displayName,
-            role:        user.role,
-            isActive:    user.isActive,
-          } as unknown as User
-
           set({
             user,
-            userProfile,
+            userProfile:     toUserProfile(user),
             isAuthenticated: true,
             isLoading:       false,
             initialized:     true,
@@ -85,7 +86,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        tokenStorage.clear()
+        try {
+          // M7: clear httpOnly cookie on the server
+          await apiFetch('/api/auth/logout', { method: 'POST' })
+        } catch {
+          // Always clear client state even if request fails
+        }
         set({
           user:            null,
           userProfile:     null,
@@ -95,35 +101,18 @@ export const useAuthStore = create<AuthState>()(
       },
 
       initialize: () => {
-        const token = tokenStorage.get()
-        if (!token) {
-          set({ isLoading: false, initialized: true })
-          return () => {}
-        }
-
-        // Verify token is still valid
+        // M7: no localStorage token to check — just call /me; cookie is sent automatically
         apiFetch<AuthUser>('/api/auth/me')
           .then((user) => {
-            const userProfile: User = {
-              uid:         user.id,
-              id:          user.id,
-              email:       user.email,
-              username:    user.username,
-              displayName: user.displayName,
-              role:        user.role,
-              isActive:    user.isActive,
-            } as unknown as User
-
             set({
               user,
-              userProfile,
+              userProfile:     toUserProfile(user),
               isAuthenticated: true,
               isLoading:       false,
               initialized:     true,
             })
           })
           .catch(() => {
-            tokenStorage.clear()
             set({
               user:            null,
               userProfile:     null,
@@ -133,7 +122,7 @@ export const useAuthStore = create<AuthState>()(
             })
           })
 
-        return () => {} // no cleanup needed (no listener)
+        return () => {}
       },
     }),
     {

@@ -1,23 +1,53 @@
 import { create } from 'zustand'
+import { API_BASE_URL } from '@/config/api'
+
+interface AdminInfo {
+  adminId: string
+  email:   string
+}
 
 interface SuperAdminState {
-  token:      string | null
-  admin:      { adminId: string; email: string } | null
-  isLoggedIn: boolean
-  login(token: string, admin: { adminId: string; email: string }): void
-  logout(): void
+  admin:         AdminInfo | null
+  isLoggedIn:    boolean
+  isInitialized: boolean
+  login(admin: AdminInfo): void
+  logout(): Promise<void>
+  initialize(): Promise<void>
 }
 
 export const useSuperAdminStore = create<SuperAdminState>((set) => ({
-  token:      localStorage.getItem('sa_token'),
-  admin:      null,
-  isLoggedIn: !!localStorage.getItem('sa_token'),
-  login(token, admin) {
-    localStorage.setItem('sa_token', token)
-    set({ token, admin, isLoggedIn: true })
+  admin:         null,
+  isLoggedIn:    false,
+  isInitialized: false,
+
+  login(admin) {
+    // M7: token is stored in httpOnly cookie by the server — nothing to store here
+    set({ admin, isLoggedIn: true })
   },
-  logout() {
-    localStorage.removeItem('sa_token')
-    set({ token: null, admin: null, isLoggedIn: false })
+
+  async logout() {
+    try {
+      await fetch(`${API_BASE_URL}/api/super-admin/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch { /* Always clear client state */ }
+    set({ admin: null, isLoggedIn: false })
+  },
+
+  async initialize() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/super-admin/me`, {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const admin: AdminInfo = await res.json()
+        set({ admin, isLoggedIn: true, isInitialized: true })
+      } else {
+        set({ isInitialized: true })
+      }
+    } catch {
+      set({ isInitialized: true })
+    }
   },
 }))

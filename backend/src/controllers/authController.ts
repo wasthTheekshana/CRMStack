@@ -1,6 +1,15 @@
-import { Request, Response } from 'express';
+import { Request, Response, CookieOptions } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const AUTH_COOKIE_OPTIONS: CookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'strict' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
 import { findUserByUsername, updateLastLogin } from '../models/userModel';
 import { findTenantById } from '../models/tenantModel';
 import { query } from '../config/db';
@@ -57,8 +66,10 @@ export async function login(req: Request, res: Response) {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
     );
 
+    // M7: Set token in httpOnly cookie (not exposed to JS)
+    res.cookie('auth_token', token, AUTH_COOKIE_OPTIONS);
+
     res.json({
-      token,
       user: {
         id:          user.id,
         email:       user.email,
@@ -75,14 +86,22 @@ export async function login(req: Request, res: Response) {
   }
 }
 
+export async function logout(_req: Request, res: Response) {
+  res.clearCookie('auth_token').json({ message: 'Logged out' });
+}
+
 export async function me(req: Request, res: Response) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  // M7: Accept token from httpOnly cookie or Bearer header
+  const token = req.cookies?.auth_token ?? (() => {
+    const h = req.headers.authorization;
+    return h?.startsWith('Bearer ') ? h.split(' ')[1] : null;
+  })();
+
+  if (!token) {
     res.status(401).json({ error: 'Missing token' });
     return;
   }
 
-  const token = header.split(' ')[1];
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tenantId: string; plan: string };
     const result = await query(

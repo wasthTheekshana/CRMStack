@@ -1,5 +1,8 @@
 version: '3.9'
 
+# Required: create a .env file in this directory with:
+#   POSTGRES_PASSWORD=<strong-random-password>
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -8,12 +11,9 @@ services:
     environment:
       POSTGRES_DB: dokcrm
       POSTGRES_USER: dokcrm
-      POSTGRES_PASSWORD: dokcrm@local123
-    ports:
-      - '5432:5432'
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U dokcrm -d dokcrm']
       interval: 10s
@@ -32,24 +32,33 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       NODE_ENV: production
-    ports:
-      - '4000:4000'
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:4000
+        VITE_API_URL: ""
     container_name: dokcrm_frontend
     restart: unless-stopped
     ports:
-      - '3000:80'
+      - '80:80'
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:80/ || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postgres_data:
