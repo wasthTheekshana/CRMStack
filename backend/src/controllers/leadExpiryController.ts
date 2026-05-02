@@ -7,12 +7,21 @@ import {
   getExpiryByTenant,
 } from '../models/leadExpiryModel';
 
-function daysUntilExpiry(expiryDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const expiry = new Date(expiryDate);
-  expiry.setHours(0, 0, 0, 0);
-  return Math.round((expiry.getTime() - today.getTime()) / 86_400_000);
+function parseLocalDate(dateStr: string | Date): Date {
+  const s = typeof dateStr === 'string' ? dateStr.slice(0, 10) : dateStr.toISOString().slice(0, 10)
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function todayMidnight(): Date {
+  const t = new Date()
+  t.setHours(0, 0, 0, 0)
+  return t
+}
+
+function computeDaysUntil(expiryDate: string | Date): number {
+  const expiry = parseLocalDate(expiryDate)
+  return Math.round((expiry.getTime() - todayMidnight().getTime()) / 86_400_000)
 }
 
 export async function getBulkLeadExpiryHandler(req: Request, res: Response) {
@@ -23,7 +32,7 @@ export async function getBulkLeadExpiryHandler(req: Request, res: Response) {
     for (const row of rows) {
       map[row.leadId] = {
         expiryDate: row.expiryDate,
-        daysUntil:  daysUntilExpiry(row.expiryDate),
+        daysUntil:  computeDaysUntil(row.expiryDate),
       };
     }
     res.json(map);
@@ -56,10 +65,10 @@ export async function setLeadExpiryHandler(req: Request, res: Response) {
     res.status(400).json({ error: 'expiryDate is required (YYYY-MM-DD)' }); return;
   }
 
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const expiry = new Date(expiryDate); expiry.setHours(0, 0, 0, 0);
-  if (expiry <= today) {
-    res.status(400).json({ error: 'Expiry date must be in the future' }); return;
+  const today  = todayMidnight();
+  const expiry = parseLocalDate(expiryDate);
+  if (expiry < today) {
+    res.status(400).json({ error: 'Expiry date must be today or in the future' }); return;
   }
 
   try {

@@ -37,7 +37,7 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const salesStages = useSalesStages()
   const getDefaultProbability = useDefaultProbability()
-  const { expiryMap } = useLeadExpiry()
+  const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
   const [leads, setLeads] = useState<Lead[]>(leadsProp)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -240,6 +240,7 @@ export function KanbanBoard({
         onClose={handleModalClose}
         onSave={onLeadUpdate}
         onDelete={onLeadDelete}
+        onExpiryChanged={refetchExpiry}
       />
     </>
   )

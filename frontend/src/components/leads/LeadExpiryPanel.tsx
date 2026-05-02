@@ -28,6 +28,9 @@ export function LeadExpiryPanel({ leadId, ownerId, createdAt, onChanged }: Props
   const canEdit = isAdmin || ownerId === userProfile?.id
 
   useEffect(() => {
+    setExpiry(null)
+    setDateValue('')
+    setLoading(true)
     getLeadExpiry(leadId)
       .then(data => {
         setExpiry(data)

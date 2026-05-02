@@ -45,7 +45,7 @@ export function LeadsPage() {
   const isAdmin = useIsAdmin()
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
-  const { expiryMap } = useLeadExpiry()
+  const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -364,6 +364,7 @@ export function LeadsPage() {
         }}
         onSave={updateLead}
         onDelete={isAdmin ? deleteLead : undefined}
+        onExpiryChanged={refetchExpiry}
       />
     </div>
   )

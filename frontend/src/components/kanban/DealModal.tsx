@@ -52,6 +52,7 @@ interface DealModalProps {
   onClose: () => void
   onSave: (id: string, data: Partial<Lead>) => Promise<unknown>
   onDelete?: (id: string) => Promise<unknown>
+  onExpiryChanged?: () => void
 }
 
 // Generate unique ID for contacts
@@ -63,6 +64,7 @@ export function DealModal({
   onClose,
   onSave,
   onDelete,
+  onExpiryChanged,
 }: DealModalProps) {
   const salesStages      = useSalesStages()
   const solutions        = useSolutions()
@@ -517,6 +519,7 @@ export function DealModal({
                 leadId={lead.id}
                 ownerId={ownerState?.ownerId ?? lead.ownerId}
                 createdAt={lead.createdAt ?? new Date().toISOString()}
+                onChanged={onExpiryChanged}
               />
             </div>
           </div>

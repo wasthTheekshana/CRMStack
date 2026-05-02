@@ -29,11 +29,16 @@ export interface ExpiryReminderRow {
   notifiedExpired: boolean;
 }
 
+function toDateString(val: unknown): string {
+  if (val instanceof Date) return val.toISOString().slice(0, 10)
+  return String(val).slice(0, 10)
+}
+
 const mapExpiry = (row: Record<string, unknown>): LeadExpiry => ({
   id:              row.id              as string,
   leadId:          row.lead_id         as string,
   tenantId:        row.tenant_id       as string,
-  expiryDate:      row.expiry_date     as string,
+  expiryDate:      toDateString(row.expiry_date),
   setBy:           row.set_by          as string,
   notified7d:      row.notified_7d     as boolean,
   notified5d:      row.notified_5d     as boolean,
@@ -91,8 +96,8 @@ export async function getExpiryByTenant(
     [tenantId]
   );
   return result.rows.map(row => ({
-    leadId:     row.lead_id    as string,
-    expiryDate: row.expiry_date as string,
+    leadId:     row.lead_id as string,
+    expiryDate: toDateString(row.expiry_date),
   }));
 }
 
@@ -120,10 +125,10 @@ export async function getLeadsWithPendingReminders(): Promise<ExpiryReminderRow[
     []
   );
   return result.rows.map(row => ({
-    leadId:          row.lead_id          as string,
-    tenantId:        row.tenant_id        as string,
-    expiryDate:      row.expiry_date      as string,
-    ownerId:         row.owner_id         as string,
+    leadId:          row.lead_id   as string,
+    tenantId:        row.tenant_id as string,
+    expiryDate:      toDateString(row.expiry_date),
+    ownerId:         row.owner_id  as string,
     companyName:     row.company_name     as string,
     notified7d:      row.notified_7d      as boolean,
     notified5d:      row.notified_5d      as boolean,

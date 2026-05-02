@@ -39,24 +39,36 @@ async function checkTaskNotifications(): Promise<void> {
   }
 }
 
+function parseLocalDate(dateStr: string | Date): Date {
+  const s = typeof dateStr === 'string' ? dateStr.slice(0, 10) : dateStr.toISOString().slice(0, 10)
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function todayMidnight(): Date {
+  const t = new Date()
+  t.setHours(0, 0, 0, 0)
+  return t
+}
+
+const daysMap: Record<string, number> = { '7d': 7, '5d': 5, '2d': 2, '1d': 1, 'expired': 0 }
+
 async function checkLeadExpiry(): Promise<void> {
   try {
     const rows = await getLeadsWithPendingReminders();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = todayMidnight();
     let sent = 0;
 
     for (const row of rows) {
-      const expiry = new Date(row.expiryDate);
-      expiry.setHours(0, 0, 0, 0);
+      const expiry = parseLocalDate(row.expiryDate);
       const daysUntil = Math.round((expiry.getTime() - today.getTime()) / 86_400_000);
 
       const interval =
-        daysUntil === 7 && !row.notified7d      ? '7d'      :
-        daysUntil === 5 && !row.notified5d      ? '5d'      :
-        daysUntil === 2 && !row.notified2d      ? '2d'      :
-        daysUntil === 1 && !row.notified1d      ? '1d'      :
-        daysUntil === 0 && !row.notifiedExpired ? 'expired' :
+        (daysUntil <= 0 && !row.notifiedExpired) ? 'expired' :
+        (daysUntil <= 1 && !row.notified1d)      ? '1d'      :
+        (daysUntil <= 2 && !row.notified2d)      ? '2d'      :
+        (daysUntil <= 5 && !row.notified5d)      ? '5d'      :
+        (daysUntil <= 7 && !row.notified7d)      ? '7d'      :
         null;
 
       if (!interval) continue;
@@ -67,7 +79,7 @@ async function checkLeadExpiry(): Promise<void> {
       await notifyLeadExpiryReminder({
         tenantId:    row.tenantId,
         companyName: row.companyName,
-        daysUntil:   interval === 'expired' ? 0 : parseInt(interval),
+        daysUntil:   daysMap[interval],
         recipientIds,
       });
 
