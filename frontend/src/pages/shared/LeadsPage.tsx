@@ -23,11 +23,13 @@ import { ImportLeadsModal } from '@/components/leads/ImportLeadsModal'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { DealModal } from '@/components/kanban/DealModal'
 import { useLeads } from '@/hooks/useLeads'
+import { useLeadExpiry } from '@/hooks/useLeadExpiry'
 import { useIsAdmin } from '@/store/authStore'
 import { Lead } from '@/types'
 import { formatCurrency } from '@/lib/utils/formatters'
 import { getRiskLevel } from '@/config/constants'
 import { useSalesStages, useStageColor } from '@/store/tenantStore'
+import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -43,6 +45,7 @@ export function LeadsPage() {
   const isAdmin = useIsAdmin()
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
+  const { expiryMap } = useLeadExpiry()
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -235,6 +238,7 @@ export function LeadsPage() {
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {filteredLeads.map((lead) => {
           const risk = getRiskLevel(lead.probability)
+          const expiryData = expiryMap[lead.id]
           return (
             <Card
               key={lead.id}
@@ -291,6 +295,10 @@ export function LeadsPage() {
                       <span className="truncate">{lead.ownerEmail}</span>
                     </div>
                   )}
+                </div>
+
+                <div className="mt-2">
+                  <ExpiryBadge daysUntil={expiryData?.daysUntil ?? null} />
                 </div>
 
                 <div className="mt-3 flex items-center justify-between">
