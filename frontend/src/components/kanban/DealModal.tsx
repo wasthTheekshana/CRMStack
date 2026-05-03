@@ -30,6 +30,7 @@ import type { CustomFieldConfig } from '@/store/tenantStore'
 import { useIsAdmin } from '@/store/authStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { LeadExpiryPanel } from '@/components/leads/LeadExpiryPanel'
+import { getLeadCreatedAt } from '@/lib/utils/leadAge'
 
 import { cn } from '@/lib/utils/cn'
 
@@ -553,7 +554,7 @@ export function DealModal({
               <LeadExpiryPanel
                 leadId={lead.id}
                 ownerId={ownerState?.ownerId ?? lead.ownerId}
-                createdAt={lead.createdAt}
+                createdAt={getLeadCreatedAt(lead, customFields)}
                 onChanged={onExpiryChanged}
               />
             </div>

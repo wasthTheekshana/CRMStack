@@ -10,10 +10,12 @@ import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
 import { getRiskLevel } from '@/config/constants'
 import { cn } from '@/lib/utils/cn'
 import { useIsAdmin } from '@/store/authStore'
+import { useCustomFields } from '@/store/tenantStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
 import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
 import { ExpiryMap } from '@/services/leadExpiryService'
+import { getLeadCreatedAt } from '@/lib/utils/leadAge'
 
 interface KanbanCardProps {
   lead: Lead
@@ -39,8 +41,10 @@ export function KanbanCard({ lead, onClick, onLeadUpdated, expiryMap }: KanbanCa
 
   const risk = getRiskLevel(lead.probability)
   const isAdmin = useIsAdmin()
+  const cfConfigs = useCustomFields()
   const [popoverOpen, setPopoverOpen] = useState(false)
   const expiryData = expiryMap?.[lead.id]
+  const effectiveCreatedAt = getLeadCreatedAt(lead, cfConfigs)
 
   return (
     <Card
@@ -139,7 +143,7 @@ export function KanbanCard({ lead, onClick, onLeadUpdated, expiryMap }: KanbanCa
             </div>
 
             <div className="mt-1.5 md:mt-2 flex flex-wrap gap-1">
-              <LeadAgeBadge createdAt={lead.createdAt} />
+              <LeadAgeBadge createdAt={effectiveCreatedAt} />
               <ExpiryBadge daysUntil={expiryData?.daysUntil ?? null} />
             </div>
           </div>

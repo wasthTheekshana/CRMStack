@@ -1,3 +1,22 @@
+import type { CustomFieldConfig } from '@/services/tenantService'
+import type { Lead } from '@/types'
+
+/**
+ * Returns the effective creation date for a lead.
+ * Prefers a date-type custom field whose name contains "created" (e.g. "Created Date"),
+ * falling back to the DB created_at timestamp.
+ */
+export function getLeadCreatedAt(lead: Lead, cfConfigs: CustomFieldConfig[]): string | undefined {
+  const dateField = cfConfigs.find(
+    cf => cf.type === 'date' && cf.name.toLowerCase().includes('created')
+  )
+  if (dateField) {
+    const val = lead.customFields?.[dateField.id]
+    if (val) return String(val)
+  }
+  return lead.createdAt
+}
+
 export function getLeadAgeDays(createdAt: string | undefined): number {
   if (!createdAt) return -1
   const ms = new Date(createdAt).getTime()

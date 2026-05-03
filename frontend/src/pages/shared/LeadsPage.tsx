@@ -28,10 +28,10 @@ import { useIsAdmin } from '@/store/authStore'
 import { Lead } from '@/types'
 import { formatCurrency } from '@/lib/utils/formatters'
 import { getRiskLevel } from '@/config/constants'
-import { useSalesStages, useStageColor } from '@/store/tenantStore'
+import { useSalesStages, useStageColor, useCustomFields } from '@/store/tenantStore'
 import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
 import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
-import { getLeadAgeDays } from '@/lib/utils/leadAge'
+import { getLeadAgeDays, getLeadCreatedAt } from '@/lib/utils/leadAge'
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -49,6 +49,7 @@ export function LeadsPage() {
   const isAdmin = useIsAdmin()
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
+  const cfConfigs = useCustomFields()
   const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
 
   // Get unique solutions from actual leads data
@@ -76,7 +77,7 @@ export function LeadsPage() {
       const matchesStage = stageFilter === 'all' || lead.salesStage === stageFilter
       const matchesSolution = solutionFilter === 'all' || lead.solution === solutionFilter
 
-      const matchesAge = ageFilter === 'all' || getLeadAgeDays(lead.createdAt) >= parseInt(ageFilter)
+      const matchesAge = ageFilter === 'all' || getLeadAgeDays(getLeadCreatedAt(lead, cfConfigs)) >= parseInt(ageFilter)
 
       const expiryData = expiryMap[lead.id]
       const matchesExpiry =
@@ -87,7 +88,7 @@ export function LeadsPage() {
 
       return matchesSearch && matchesStage && matchesSolution && matchesAge && matchesExpiry
     })
-  }, [leads, searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter, expiryMap])
+  }, [leads, searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs])
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead)
@@ -379,7 +380,7 @@ export function LeadsPage() {
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <LeadAgeBadge createdAt={lead.createdAt} />
+                  <LeadAgeBadge createdAt={getLeadCreatedAt(lead, cfConfigs)} />
                   <ExpiryBadge daysUntil={expiryData?.daysUntil ?? null} />
                 </div>
 
