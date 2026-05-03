@@ -553,7 +553,7 @@ export function DealModal({
               <LeadExpiryPanel
                 leadId={lead.id}
                 ownerId={ownerState?.ownerId ?? lead.ownerId}
-                createdAt={lead.createdAt ?? new Date().toISOString()}
+                createdAt={lead.createdAt}
                 onChanged={onExpiryChanged}
               />
             </div>

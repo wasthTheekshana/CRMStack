@@ -9,11 +9,12 @@ import {
   LeadExpiry,
 } from '@/services/leadExpiryService'
 import { useAuthStore, useIsAdmin } from '@/store/authStore'
+import { getLeadAgeDays, formatLeadAge } from '@/lib/utils/leadAge'
 
 interface Props {
   leadId:     string
   ownerId:    string
-  createdAt:  string   // ISO string — used to compute "Open for X days"
+  createdAt?: string
   onChanged?: () => void
 }
 
@@ -40,7 +41,7 @@ export function LeadExpiryPanel({ leadId, ownerId, createdAt, onChanged }: Props
       .finally(() => setLoading(false))
   }, [leadId])
 
-  const daysOpen = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000)
+  const daysOpen = getLeadAgeDays(createdAt)
 
   let daysUntil: number | null = null
   if (expiry) {
@@ -81,9 +82,11 @@ export function LeadExpiryPanel({ leadId, ownerId, createdAt, onChanged }: Props
 
   return (
     <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">
-        Open for {daysOpen} day{daysOpen === 1 ? '' : 's'}
-      </p>
+      {daysOpen >= 0 && (
+        <p className="text-sm text-muted-foreground">
+          Open for {formatLeadAge(createdAt)}
+        </p>
+      )}
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
