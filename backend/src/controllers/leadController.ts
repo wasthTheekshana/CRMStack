@@ -18,16 +18,24 @@ import {
   notifyLeadRestored,
 } from '../services/notificationService';
 
-const MAX_STR = 500; // max length for standard string fields
+const MAX_STR      = 500;   // short fields: names, stages, emails
+const MAX_TEXT     = 5000;  // free-text fields: remarks, hoUpdate
 const MAX_CUSTOM_KEYS = 50;
 const MAX_CUSTOM_VALUE_LEN = 1000;
 
 function validateLeadFields(body: Record<string, unknown>): string | null {
-  const strFields = ['companyName', 'solution', 'salesStage', 'remarks', 'hoUpdate', 'position', 'ownerEmail'] as const;
-  for (const field of strFields) {
+  const shortFields = ['companyName', 'solution', 'salesStage', 'position', 'ownerEmail'] as const;
+  for (const field of shortFields) {
     const val = body[field];
     if (typeof val === 'string' && val.length > MAX_STR) {
       return `${field} must be at most ${MAX_STR} characters`;
+    }
+  }
+
+  for (const field of ['remarks', 'hoUpdate'] as const) {
+    const val = body[field];
+    if (typeof val === 'string' && val.length > MAX_TEXT) {
+      return `${field} must be at most ${MAX_TEXT} characters`;
     }
   }
 

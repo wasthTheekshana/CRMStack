@@ -513,6 +513,7 @@ export function DealModal({
                   {...register('remarks')}
                   disabled={isLoading}
                   rows={3}
+                  maxLength={5000}
                 />
               </div>
             )}
@@ -524,6 +525,7 @@ export function DealModal({
                   id="hoUpdate"
                   {...register('hoUpdate')}
                   disabled={isLoading}
+                  maxLength={5000}
                 />
               </div>
             )}

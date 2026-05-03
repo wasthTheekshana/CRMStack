@@ -390,6 +390,7 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
                 {...register('remarks')}
                 disabled={isLoading}
                 rows={3}
+                maxLength={5000}
                 placeholder="Enter any additional notes..."
               />
             </div>
@@ -400,6 +401,7 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
                 id="hoUpdate"
                 {...register('hoUpdate')}
                 disabled={isLoading}
+                maxLength={5000}
                 placeholder="Head Office update status"
               />
             </div>
