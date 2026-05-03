@@ -92,15 +92,20 @@ export function SalesTargetsPage() {
     loadTargets()
   }, [user, selectedYear])
 
-  // Calculate summary stats
+  const filteredTargets = useMemo(
+    () => targets.filter(t => t.year === selectedYear),
+    [targets, selectedYear]
+  )
+
+  // Calculate summary stats for the selected year only
   const summary = useMemo(() => {
-    const totalTarget = targets.reduce((sum, t) => sum + t.target, 0)
-    const totalAchievement = targets.reduce((sum, t) => sum + t.achievement, 0)
+    const totalTarget = filteredTargets.reduce((sum, t) => sum + t.target, 0)
+    const totalAchievement = filteredTargets.reduce((sum, t) => sum + t.achievement, 0)
     const variance = totalAchievement - totalTarget
     const percentage = totalTarget > 0 ? (totalAchievement / totalTarget) * 100 : 0
 
     return { totalTarget, totalAchievement, variance, percentage }
-  }, [targets])
+  }, [filteredTargets])
 
   const openCreateModal = () => {
     setEditingTarget(null)
@@ -298,7 +303,7 @@ export function SalesTargetsPage() {
           <CardTitle>Monthly Breakdown - {selectedYear}</CardTitle>
         </CardHeader>
         <CardContent>
-          {targets.length === 0 ? (
+          {filteredTargets.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No targets set for {selectedYear}. Click "Add Target" to get started.
             </div>
@@ -315,7 +320,7 @@ export function SalesTargetsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {targets.map((target) => {
+                {filteredTargets.map((target) => {
                   const variance = target.achievement - target.target
                   const percentage = target.target > 0
                     ? (target.achievement / target.target) * 100
