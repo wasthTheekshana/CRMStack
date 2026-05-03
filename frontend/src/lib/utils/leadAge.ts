@@ -1,7 +1,10 @@
 export function getLeadAgeDays(createdAt: string | undefined): number {
-  if (!createdAt) return 0
-  const diffMs = Date.now() - new Date(createdAt).getTime()
-  return Math.max(0, Math.floor(diffMs / 86_400_000))
+  if (!createdAt) return -1
+  const ms = new Date(createdAt).getTime()
+  if (isNaN(ms)) return -1
+  const diffMs = Date.now() - ms
+  if (diffMs < 0) return -1  // future-dated record
+  return Math.floor(diffMs / 86_400_000)
 }
 
 export function formatLeadAge(createdAt: string | undefined): string {

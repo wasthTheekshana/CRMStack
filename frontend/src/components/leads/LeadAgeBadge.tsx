@@ -10,6 +10,8 @@ interface Props {
 export function LeadAgeBadge({ createdAt, className }: Props) {
   const days = getLeadAgeDays(createdAt)
 
+  if (days < 0) return null
+
   const colourClass =
     days >= 90 ? 'bg-red-100 text-red-700' :
     days >= 60 ? 'bg-orange-100 text-orange-700' :
