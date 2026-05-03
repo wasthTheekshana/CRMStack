@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils/cn'
 import { useIsAdmin } from '@/store/authStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
+import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
 import { ExpiryMap } from '@/services/leadExpiryService'
 
 interface KanbanCardProps {
@@ -137,7 +138,8 @@ export function KanbanCard({ lead, onClick, onLeadUpdated, expiryMap }: KanbanCa
               )}
             </div>
 
-            <div className="mt-1.5 md:mt-2">
+            <div className="mt-1.5 md:mt-2 flex flex-wrap gap-1">
+              <LeadAgeBadge createdAt={lead.createdAt} />
               <ExpiryBadge daysUntil={expiryData?.daysUntil ?? null} />
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload } from 'lucide-react'
+import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,6 +30,8 @@ import { formatCurrency } from '@/lib/utils/formatters'
 import { getRiskLevel } from '@/config/constants'
 import { useSalesStages, useStageColor } from '@/store/tenantStore'
 import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
+import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
+import { getLeadAgeDays } from '@/lib/utils/leadAge'
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -40,6 +42,8 @@ export function LeadsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [ageFilter, setAgeFilter] = useState<string>('all')      // admin only
+  const [expiryFilter, setExpiryFilter] = useState<string>('all') // admin only
 
   const { leads, isLoading, createLead, updateLead, deleteLead, reassignLead, refetch } = useLeads()
   const isAdmin = useIsAdmin()
@@ -61,7 +65,6 @@ export function LeadsPage() {
   // Filter leads
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
-      // Get primary contact name or first contact name
       const primaryContact = lead.contacts?.find(c => c.isPrimary) || lead.contacts?.[0]
       const contactName = primaryContact?.name || lead.contactName || ''
 
@@ -73,9 +76,18 @@ export function LeadsPage() {
       const matchesStage = stageFilter === 'all' || lead.salesStage === stageFilter
       const matchesSolution = solutionFilter === 'all' || lead.solution === solutionFilter
 
-      return matchesSearch && matchesStage && matchesSolution
+      const matchesAge = ageFilter === 'all' || getLeadAgeDays(lead.createdAt) >= parseInt(ageFilter)
+
+      const expiryData = expiryMap[lead.id]
+      const matchesExpiry =
+        expiryFilter === 'all' ||
+        (expiryFilter === 'expired' && expiryData !== undefined && expiryData.daysUntil < 0) ||
+        (expiryFilter === 'expiring7' && expiryData !== undefined && expiryData.daysUntil >= 0 && expiryData.daysUntil <= 7) ||
+        (expiryFilter === 'none' && expiryData === undefined)
+
+      return matchesSearch && matchesStage && matchesSolution && matchesAge && matchesExpiry
     })
-  }, [leads, searchTerm, stageFilter, solutionFilter])
+  }, [leads, searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter, expiryMap])
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead)
@@ -86,9 +98,13 @@ export function LeadsPage() {
     setStageFilter('all')
     setSolutionFilter('all')
     setSearchTerm('')
+    setAgeFilter('all')
+    setExpiryFilter('all')
   }
 
-  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== ''
+  const hasActiveFilters =
+    stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== '' ||
+    ageFilter !== 'all' || expiryFilter !== 'all'
 
   if (isLoading) {
     return (
@@ -181,6 +197,42 @@ export function LeadsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {isAdmin && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5" /> Lead Age
+                      </label>
+                      <Select value={ageFilter} onValueChange={setAgeFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Any age" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Any age</SelectItem>
+                          <SelectItem value="30">1+ month old</SelectItem>
+                          <SelectItem value="60">2+ months old</SelectItem>
+                          <SelectItem value="90">3+ months old</SelectItem>
+                          <SelectItem value="180">6+ months old</SelectItem>
+                          <SelectItem value="365">1+ year old</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Expiry Status</label>
+                      <Select value={expiryFilter} onValueChange={setExpiryFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="expired">Expired</SelectItem>
+                          <SelectItem value="expiring7">Expiring in 7 days</SelectItem>
+                          <SelectItem value="none">No expiry set</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
                 {hasActiveFilters && (
                   <Button variant="ghost" onClick={clearFilters} className="w-full">
                     <X className="h-4 w-4 mr-2" />
@@ -193,9 +245,9 @@ export function LeadsPage() {
         </div>
 
         {/* Desktop filters */}
-        <div className="hidden md:flex gap-3">
+        <div className="hidden md:flex gap-3 flex-wrap">
           <Select value={stageFilter} onValueChange={setStageFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter by stage" />
             </SelectTrigger>
             <SelectContent>
@@ -208,7 +260,7 @@ export function LeadsPage() {
             </SelectContent>
           </Select>
           <Select value={solutionFilter} onValueChange={setSolutionFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter by solution" />
             </SelectTrigger>
             <SelectContent>
@@ -220,6 +272,35 @@ export function LeadsPage() {
               ))}
             </SelectContent>
           </Select>
+          {isAdmin && (
+            <>
+              <Select value={ageFilter} onValueChange={setAgeFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <Clock className="h-3.5 w-3.5 mr-1.5" />
+                  <SelectValue placeholder="Any age" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any age</SelectItem>
+                  <SelectItem value="30">1+ month old</SelectItem>
+                  <SelectItem value="60">2+ months old</SelectItem>
+                  <SelectItem value="90">3+ months old</SelectItem>
+                  <SelectItem value="180">6+ months old</SelectItem>
+                  <SelectItem value="365">1+ year old</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={expiryFilter} onValueChange={setExpiryFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Expiry status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All expiry</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="expiring7">Expiring in 7 days</SelectItem>
+                  <SelectItem value="none">No expiry set</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               <X className="h-4 w-4 mr-1" />
@@ -297,7 +378,8 @@ export function LeadsPage() {
                   )}
                 </div>
 
-                <div className="mt-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <LeadAgeBadge createdAt={lead.createdAt} />
                   <ExpiryBadge daysUntil={expiryData?.daysUntil ?? null} />
                 </div>
 
