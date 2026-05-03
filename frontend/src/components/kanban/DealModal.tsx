@@ -106,7 +106,7 @@ export function DealModal({
   useEffect(() => {
     if (lead) {
       if (lead.contacts && lead.contacts.length > 0) {
-        setContacts(lead.contacts)
+        setContacts(lead.contacts.map(c => ({ ...c, id: c.id || generateContactId() })))
       } else if (lead.contactName) {
         // Legacy: convert single contact to array
         setContacts([{
