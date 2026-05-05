@@ -14,6 +14,7 @@ import { CHART_COLORS } from '@/config/constants'
 interface SolutionPieChartProps {
   data: SolutionData[]
   title?: string
+  onSliceClick?: (solution: string) => void
 }
 
 // Group smaller solutions into "Others" category
@@ -54,6 +55,7 @@ function processChartData(data: SolutionData[], topCount: number = 6) {
 export function SolutionPieChart({
   data,
   title = 'Revenue by Solution',
+  onSliceClick,
 }: SolutionPieChartProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
@@ -100,6 +102,7 @@ export function SolutionPieChart({
                         transition: 'opacity 0.2s ease-in-out',
                         cursor: 'pointer'
                       }}
+                      onClick={() => onSliceClick?.(entry.solution)}
                     />
                   ))}
                 </Pie>
@@ -137,6 +140,7 @@ export function SolutionPieChart({
                     }`}
                     onMouseEnter={() => setActiveIndex(index)}
                     onMouseLeave={() => setActiveIndex(null)}
+                    onClick={() => onSliceClick?.(entry.solution)}
                   >
                     <div
                       className="w-3 h-3 rounded-sm flex-shrink-0"
