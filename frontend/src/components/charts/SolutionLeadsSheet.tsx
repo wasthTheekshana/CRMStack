@@ -74,7 +74,7 @@ export function SolutionLeadsSheet({ open, solution, leads, onClose }: Props) {
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-muted-foreground truncate">{lead.ownerEmail}</p>
+                  <p className="text-[11px] text-muted-foreground truncate" title={lead.ownerEmail}>{lead.ownerEmail}</p>
                 </div>
               )
             })
