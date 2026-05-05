@@ -61,7 +61,7 @@ export function AnalyticsPage() {
 
   const sheetLeads = useMemo(() => {
     if (!selectedSolution) return []
-    if (selectedSolution.startsWith('Others')) {
+    if (/^Others \(\d+\)$/.test(selectedSolution)) {
       // processChartData(data, 8) takes topCount-1=7 individual slices; rest go into "Others"
       const top7 = new Set(solutionData.slice(0, 7).map(d => d.solution))
       return filteredLeads.filter(l => !top7.has(l.solution || 'Other'))

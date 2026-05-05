@@ -100,7 +100,7 @@ export function SolutionPieChart({
                       opacity={activeIndex === null || activeIndex === index ? 1 : 0.6}
                       style={{
                         transition: 'opacity 0.2s ease-in-out',
-                        cursor: 'pointer'
+                        cursor: onSliceClick ? 'pointer' : 'default'
                       }}
                       onClick={() => onSliceClick?.(entry.solution)}
                     />
@@ -135,9 +135,9 @@ export function SolutionPieChart({
                 return (
                   <div
                     key={index}
-                    className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
-                      activeIndex === index ? 'bg-gray-100' : 'hover:bg-gray-50'
-                    }`}
+                    className={`flex items-center gap-2 p-1.5 rounded transition-colors ${
+                      onSliceClick ? 'cursor-pointer' : 'cursor-default'
+                    } ${activeIndex === index ? 'bg-gray-100' : onSliceClick ? 'hover:bg-gray-50' : ''}`}
                     onMouseEnter={() => setActiveIndex(index)}
                     onMouseLeave={() => setActiveIndex(null)}
                     onClick={() => onSliceClick?.(entry.solution)}
