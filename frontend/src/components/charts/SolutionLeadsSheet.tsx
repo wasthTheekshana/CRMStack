@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -22,6 +23,11 @@ export function SolutionLeadsSheet({ open, solution, leads, onClose }: Props) {
   const getStageColor = useStageColor()
   const total = leads.reduce((sum, l) => sum + (l.estimatedRevenue || 0), 0)
 
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (open) scrollRef.current?.scrollTo({ top: 0 })
+  }, [open, solution])
+
   return (
     <Sheet open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
       <SheetContent side="right" className="w-[400px] sm:max-w-[440px] flex flex-col p-0">
@@ -32,7 +38,7 @@ export function SolutionLeadsSheet({ open, solution, leads, onClose }: Props) {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {leads.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               No leads found for this solution.
