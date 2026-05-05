@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/sheet'
 import { PipelineChart } from '@/components/charts/PipelineChart'
 import { SolutionPieChart } from '@/components/charts/SolutionPieChart'
+import { SolutionLeadsSheet } from '@/components/charts/SolutionLeadsSheet'
 import { BubbleChart } from '@/components/charts/BubbleChart'
 import { FunnelChart } from '@/components/charts/FunnelChart'
 import { useLeads } from '@/hooks/useLeads'
@@ -29,6 +30,7 @@ export function AnalyticsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all')
   const [solutionFilter, setSolutionFilter] = useState<string>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectedSolution, setSelectedSolution] = useState<string | null>(null)
 
   const { leads, isLoading } = useLeads()
   const salesStages = useSalesStages()
@@ -56,6 +58,15 @@ export function AnalyticsPage() {
   const kpis = useKPIs(filteredLeads)
   const stageData = useStageData(filteredLeads)
   const solutionData = useSolutionData(filteredLeads)
+
+  const sheetLeads = useMemo(() => {
+    if (!selectedSolution) return []
+    if (selectedSolution.startsWith('Others')) {
+      const top7 = new Set(solutionData.slice(0, 7).map(d => d.solution))
+      return filteredLeads.filter(l => !top7.has(l.solution || 'Other'))
+    }
+    return filteredLeads.filter(l => (l.solution || 'Other') === selectedSolution)
+  }, [selectedSolution, solutionData, filteredLeads])
 
   const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all'
 
@@ -227,7 +238,11 @@ export function AnalyticsPage() {
 
       {/* Charts Row 2 */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-        <SolutionPieChart data={solutionData} title="Revenue by Solution" />
+        <SolutionPieChart
+          data={solutionData}
+          title="Revenue by Solution"
+          onSliceClick={setSelectedSolution}
+        />
         <PipelineChart
           data={stageData}
           title="Revenue by Stage"
@@ -297,6 +312,13 @@ export function AnalyticsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <SolutionLeadsSheet
+        open={!!selectedSolution}
+        solution={selectedSolution ?? ''}
+        leads={sheetLeads}
+        onClose={() => setSelectedSolution(null)}
+      />
     </div>
   )
 }
