@@ -1,4 +1,26 @@
+import crypto from 'crypto'
+import path from 'path'
+import dotenv from 'dotenv'
+
+dotenv.config({ path: path.resolve(__dirname, '../../backend/.env') })
+
 const BASE = process.env.BACKEND_URL ?? 'http://localhost:4000'
+
+/**
+ * Mint a short-lived JWT for a test user directly using the backend's
+ * JWT_SECRET, without hitting the /api/auth/login endpoint.
+ * This avoids the login rate-limiter (10 req / 15 min / IP).
+ */
+export function mintTestJwt(payload: Record<string, unknown>, expiresInSec = 3600): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error('JWT_SECRET not found in backend/.env')
+
+  const header  = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const now     = Math.floor(Date.now() / 1000)
+  const body    = Buffer.from(JSON.stringify({ ...payload, iat: now, exp: now + expiresInSec })).toString('base64url')
+  const sig     = crypto.createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url')
+  return `${header}.${body}.${sig}`
+}
 
 export async function apiLogin(
   email: string,
