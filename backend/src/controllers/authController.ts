@@ -10,7 +10,7 @@ const AUTH_COOKIE_OPTIONS: CookieOptions = {
   sameSite: isProduction ? 'strict' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
-import { findUserByUsername, updateLastLogin } from '../models/userModel';
+import { findUserByUsername, findUserByUsernameInTenant, updateLastLogin } from '../models/userModel';
 import { findTenantById } from '../models/tenantModel';
 import { query } from '../config/db';
 import { createResetToken, findValidToken, claimToken } from '../models/resetTokenModel';
@@ -29,7 +29,14 @@ export async function login(req: Request, res: Response) {
   }
 
   try {
-    const user = await findUserByUsername(username);
+    // Scope login to the tenant only when nginx set the subdomain header
+    // (i.e. production). In local dev the header is absent so req.tenant is a
+    // fallback default — use global lookup instead so any test user can log in.
+    const hasSubdomainHeader = !!req.headers['x-tenant-subdomain'];
+    const user = (hasSubdomainHeader && req.tenant)
+      ? await findUserByUsernameInTenant(username, req.tenant.id)
+      : await findUserByUsername(username);
+
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
@@ -46,7 +53,7 @@ export async function login(req: Request, res: Response) {
       return;
     }
 
-    const tenant = await findTenantById(user.tenant_id);
+    const tenant = req.tenant ?? await findTenantById(user.tenant_id);
     if (!tenant || tenant.status !== 'active') {
       res.status(403).json({ error: 'Tenant is inactive or suspended' });
       return;

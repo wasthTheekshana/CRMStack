@@ -25,11 +25,26 @@ app.set('trust proxy', 1);
 // H3: Security headers
 app.use(helmet());
 
-// C2: CORS origin from env var — support comma-separated list or regex string
-const rawOrigin = process.env.CORS_ORIGIN || '';
-const corsOrigin = rawOrigin
-  ? rawOrigin.split(',').map(s => s.trim())
-  : /^http:\/\/localhost(:\d+)?$/;
+// C2: CORS — allow static origins from CORS_ORIGIN env var plus any subdomain of
+// CORS_BASE_DOMAIN (e.g. "crmstack.site") so tenant subdomains don't need to be
+// enumerated individually.
+const staticOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+const baseDomain = process.env.TENANT_BASE_DOMAIN || process.env.CORS_BASE_DOMAIN || '';
+const tenantSubdomainRe = baseDomain
+  ? new RegExp(`^https://[a-z0-9-]+\\.${baseDomain.replace(/\./g, '\\.')}$`)
+  : null;
+
+const corsOrigin: cors.CorsOptions['origin'] = (origin, callback) => {
+  if (!origin) return callback(null, true); // server-to-server / curl
+  if (staticOrigins.includes(origin)) return callback(null, true);
+  if (tenantSubdomainRe?.test(origin)) return callback(null, true);
+  if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+    return callback(null, true);
+  }
+  callback(new Error('Not allowed by CORS'));
+};
 
 app.use(cors({ origin: corsOrigin, credentials: true }));
 

@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:4000'
+const BASE = process.env.BACKEND_URL ?? 'http://localhost:4000'
 
 export async function apiLogin(
   email: string,

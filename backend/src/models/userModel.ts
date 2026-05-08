@@ -62,6 +62,18 @@ export async function findUserByUsername(username: string) {
   return result.rows[0] ?? null;
 }
 
+export async function findUserByUsernameInTenant(username: string, tenantId: string) {
+  const result = await query(
+    `SELECT * FROM users
+     WHERE (LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1))
+       AND tenant_id = $2
+       AND is_active = TRUE
+     LIMIT 1`,
+    [username, tenantId]
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function createUser(data: {
   email:        string;
   username:     string;

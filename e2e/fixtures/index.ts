@@ -44,11 +44,23 @@ export const test = base.extend<Fixtures>({
           headers: { ...route.request().headers(), 'X-Tenant-Subdomain': subdomain },
         })
       )
-      await page.goto('/login')
-      await page.fill('#username', email)
-      await page.fill('#password', password)
-      await page.click('button[type="submit"]')
-      await page.waitForURL('http://localhost:3000/')
+      try {
+        await page.goto('/login')
+        await page.fill('#username', email)
+        await page.fill('#password', password)
+        const [loginRes] = await Promise.all([
+          page.waitForResponse(r => r.url().includes('/api/auth/login')),
+          page.click('button[type="submit"]'),
+        ])
+        if (loginRes.status() !== 200) {
+          throw new Error(`authedPage login failed: HTTP ${loginRes.status()} for ${email} on subdomain "${subdomain}"`)
+        }
+        await page.waitForURL('/')
+      } catch (err) {
+        contexts.splice(contexts.indexOf(ctx), 1)
+        await ctx.close()
+        throw err
+      }
       return page
     })
     for (const ctx of contexts) await ctx.close()
