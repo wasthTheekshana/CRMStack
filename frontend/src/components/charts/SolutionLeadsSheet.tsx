@@ -30,7 +30,7 @@ export function SolutionLeadsSheet({ open, solution, leads, onClose }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
-      <SheetContent side="right" className="w-[400px] sm:max-w-[440px] flex flex-col p-0">
+      <SheetContent side="right" className="w-[400px] sm:max-w-[440px] flex flex-col p-0" data-testid="leads-sheet">
         <SheetHeader className="px-6 pt-6 pb-4 border-b">
           <SheetTitle>{solution}</SheetTitle>
           <SheetDescription>
