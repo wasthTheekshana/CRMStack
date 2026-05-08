@@ -6,9 +6,10 @@ import { resolveTenant } from '../middleware/tenantResolver';
 const router = Router();
 
 // 10 attempts per 15 minutes per IP — prevents brute-force on login
+// Disabled in test environment so the E2E suite isn't blocked by rate limiting
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: process.env.NODE_ENV === 'test' ? 10_000 : 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts, please try again later' },

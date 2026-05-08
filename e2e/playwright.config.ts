@@ -23,6 +23,7 @@ export default defineConfig({
       port:                4000,
       reuseExistingServer: !process.env.CI,
       timeout:             30_000,
+      env:                 { NODE_ENV: 'test' },
     },
     {
       command:             'npm run dev',
