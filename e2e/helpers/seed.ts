@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import path from 'path'
 import dotenv from 'dotenv'
 
-dotenv.config({ path: path.join(process.cwd(), '../backend/.env') })
+dotenv.config({ path: path.resolve(__dirname, '../../backend/.env') })
 
 function getDbClient() {
   return new Client({
@@ -39,6 +39,7 @@ export async function seedTestData(): Promise<SeedData> {
   const client = getDbClient()
   await client.connect()
   try {
+    await client.query('BEGIN')
     const hash = await bcrypt.hash(PASSWORD, 10)
 
     // Tenants
@@ -95,6 +96,7 @@ export async function seedTestData(): Promise<SeedData> {
       )
     }
 
+    await client.query('COMMIT')
     return {
       tenants: {
         dok: { id: dokId, subdomain: 'dok-test' },
@@ -107,6 +109,9 @@ export async function seedTestData(): Promise<SeedData> {
         atlSales: { id: atlSalesRes.rows[0].id,   email: 'atl-sales@test.com', username: 'atl-sales-test', password: PASSWORD },
       },
     }
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
   } finally {
     await client.end()
   }
