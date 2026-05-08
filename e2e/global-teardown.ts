@@ -8,8 +8,8 @@ export default async function globalTeardown() {
   const seedData: SeedData = JSON.parse(fs.readFileSync(seedPath, 'utf-8'))
   try {
     await teardownTestData(seedData)
+    console.log('✓ Test tenants removed')
   } finally {
     fs.unlinkSync(seedPath)
   }
-  console.log('✓ Test tenants removed')
 }
