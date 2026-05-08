@@ -19,27 +19,32 @@ async function getAuthedAnalyticsPage(
 ) {
   const token = mintTestJwt({ userId, tenantId, role, email, plan })
   const ctx = await browser.newContext()
-  // Route API calls with the tenant subdomain header (mirrors authedPage fixture)
-  await ctx.route('**/api/**', (route) =>
-    route.continue({
-      headers: { ...route.request().headers(), 'X-Tenant-Subdomain': subdomain },
-    }),
-  )
-  // Inject the httpOnly auth_token cookie directly — no login form needed
-  await ctx.addCookies([
-    {
-      name:     'auth_token',
-      value:    token,
-      domain:   'localhost',
-      path:     '/',
-      httpOnly: true,
-      secure:   false,
-      sameSite: 'Lax',
-    },
-  ])
-  const page = await ctx.newPage()
-  await page.goto('/analytics')
-  return { page, ctx }
+  try {
+    // Route API calls with the tenant subdomain header (mirrors authedPage fixture)
+    await ctx.route('**/api/**', (route) =>
+      route.continue({
+        headers: { ...route.request().headers(), 'X-Tenant-Subdomain': subdomain },
+      }),
+    )
+    // Inject the httpOnly auth_token cookie directly — no login form needed
+    await ctx.addCookies([
+      {
+        name:     'auth_token',
+        value:    token,
+        domain:   'localhost',
+        path:     '/',
+        httpOnly: true,
+        secure:   false,
+        sameSite: 'Lax',
+      },
+    ])
+    const page = await ctx.newPage()
+    await page.goto('/analytics')
+    return { page, ctx }
+  } catch (err) {
+    await ctx.close()
+    throw err
+  }
 }
 
 test.describe('Analytics drill-down', () => {
@@ -58,8 +63,8 @@ test.describe('Analytics drill-down', () => {
 
       // Sheet should be visible with matching title
       // SheetTitle renders as DialogPrimitive.Title → <h2> (no data-slot in this shadcn version)
-      await expect(page.locator('[role="dialog"]')).toBeVisible()
-      await expect(page.locator('[role="dialog"] h2')).toHaveText(solutionName!)
+      await expect(page.locator('[data-testid="leads-sheet"]')).toBeVisible()
+      await expect(page.locator('[data-testid="leads-sheet"] h2')).toHaveText(solutionName!)
     } finally {
       await ctx.close()
     }
@@ -74,11 +79,11 @@ test.describe('Analytics drill-down', () => {
     )
     try {
       await page.locator('p.text-xs.font-medium.text-gray-900').first().click()
-      await expect(page.locator('[role="dialog"]')).toBeVisible()
+      await expect(page.locator('[data-testid="leads-sheet"]')).toBeVisible()
 
       // SheetDescription renders as DialogPrimitive.Description → <p class="text-sm text-muted-foreground">
       // Each seeded solution has exactly 1 lead
-      const description = page.locator('[role="dialog"] p.text-sm.text-muted-foreground')
+      const description = page.locator('[data-testid="leads-sheet"] p.text-sm.text-muted-foreground')
       await expect(description).toContainText('1 lead')
     } finally {
       await ctx.close()
@@ -98,11 +103,11 @@ test.describe('Analytics drill-down', () => {
       await expect(othersItem).toBeVisible()
       await othersItem.click()
 
-      await expect(page.locator('[role="dialog"]')).toBeVisible()
-      await expect(page.locator('[role="dialog"] h2')).toContainText('Others')
+      await expect(page.locator('[data-testid="leads-sheet"]')).toBeVisible()
+      await expect(page.locator('[data-testid="leads-sheet"] h2')).toContainText('Others')
 
       // Should show 2 leads (the 2 that didn't make top 7)
-      const description = page.locator('[role="dialog"] p.text-sm.text-muted-foreground')
+      const description = page.locator('[data-testid="leads-sheet"] p.text-sm.text-muted-foreground')
       await expect(description).toContainText('2 leads')
     } finally {
       await ctx.close()
@@ -118,11 +123,11 @@ test.describe('Analytics drill-down', () => {
     )
     try {
       await page.locator('p.text-xs.font-medium.text-gray-900').first().click()
-      await expect(page.locator('[role="dialog"]')).toBeVisible()
+      await expect(page.locator('[data-testid="leads-sheet"]')).toBeVisible()
 
       // The SheetContent renders a close button with <span class="sr-only">Close</span>
       await page.getByRole('button', { name: 'Close' }).click()
-      await expect(page.locator('[role="dialog"]')).not.toBeVisible()
+      await expect(page.locator('[data-testid="leads-sheet"]')).not.toBeVisible()
     } finally {
       await ctx.close()
     }
@@ -141,16 +146,16 @@ test.describe('Analytics drill-down', () => {
       // Open first
       const first = await items.nth(0).textContent()
       await items.nth(0).click()
-      await expect(page.locator('[role="dialog"] h2')).toHaveText(first!)
+      await expect(page.locator('[data-testid="leads-sheet"] h2')).toHaveText(first!)
 
       // Close
       await page.getByRole('button', { name: 'Close' }).click()
-      await expect(page.locator('[role="dialog"]')).not.toBeVisible()
+      await expect(page.locator('[data-testid="leads-sheet"]')).not.toBeVisible()
 
       // Open second
       const second = await items.nth(1).textContent()
       await items.nth(1).click()
-      await expect(page.locator('[role="dialog"] h2')).toHaveText(second!)
+      await expect(page.locator('[data-testid="leads-sheet"] h2')).toHaveText(second!)
     } finally {
       await ctx.close()
     }

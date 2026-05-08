@@ -83,7 +83,12 @@ export async function seedTestData(): Promise<SeedData> {
     const dokAdminId = dokAdminRes.rows[0].id as string
 
     // Leads for dok-test (9 distinct solutions → produces "Others (2)" bucket)
-    for (const solution of SOLUTIONS) {
+    // Revenues decrease with index so SOLUTIONS[0] ('Alpha Suite') has the highest
+    // revenue (180000) and SOLUTIONS[8] ('Iota Flow') the lowest (100000).
+    // processChartData sorts descending, so the top 7 are SOLUTIONS[0..6] and
+    // Others contains SOLUTIONS[7] + SOLUTIONS[8] — giving a deterministic sort.
+    for (let i = 0; i < SOLUTIONS.length; i++) {
+      const solution = SOLUTIONS[i]
       await client.query(
         `INSERT INTO leads
            (company_name, solution, contacts, sales_stage, estimated_revenue,
@@ -91,7 +96,8 @@ export async function seedTestData(): Promise<SeedData> {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           `${solution} Corp`, solution, '[]', 'Meeting Pending',
-          100000, 50, dokAdminId, 'dok-admin@test.com', dokId,
+          100000 + ((SOLUTIONS.length - 1 - i) * 10000),
+          50, dokAdminId, 'dok-admin@test.com', dokId,
         ]
       )
     }
