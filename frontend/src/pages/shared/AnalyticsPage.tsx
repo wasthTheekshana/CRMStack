@@ -31,7 +31,7 @@ import { useSalesStages, useWonStages } from '@/store/tenantStore'
 export function AnalyticsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all')
   const [solutionFilter, setSolutionFilter] = useState<string>('all')
-  const [closedWonOnly, setClosedWonOnly] = useState(false)
+  const [includeClosedWon, setIncludeClosedWon] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedSolution, setSelectedSolution] = useState<string | null>(null)
 
@@ -59,12 +59,12 @@ export function AnalyticsPage() {
     })
   }, [leads, stageFilter, solutionFilter])
 
-  // solutionLeads is filteredLeads further narrowed to Closed Won when the toggle is on.
-  // Kept separate so the toggle only affects the Revenue by Solution card and its drill-down.
+  // By default (toggle OFF) closed-won leads are excluded from the solution chart.
+  // Toggle ON adds them back. Other charts are unaffected.
   const solutionLeads = useMemo(() => {
-    if (!closedWonOnly) return filteredLeads
-    return filteredLeads.filter(l => wonStages.includes(l.salesStage))
-  }, [filteredLeads, closedWonOnly, wonStages])
+    if (includeClosedWon) return filteredLeads
+    return filteredLeads.filter(l => !wonStages.includes(l.salesStage))
+  }, [filteredLeads, includeClosedWon, wonStages])
 
   const kpis = useKPIs(filteredLeads)
   const stageData = useStageData(filteredLeads)
@@ -79,12 +79,12 @@ export function AnalyticsPage() {
     return solutionLeads.filter(l => (l.solution || 'Other') === selectedSolution)
   }, [selectedSolution, solutionData, solutionLeads])
 
-  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || closedWonOnly
+  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || includeClosedWon
 
   const clearFilters = () => {
     setStageFilter('all')
     setSolutionFilter('all')
-    setClosedWonOnly(false)
+    setIncludeClosedWon(false)
   }
 
   if (isLoading) {
@@ -155,12 +155,12 @@ export function AnalyticsPage() {
               </div>
               <div className="flex items-center justify-between py-1">
                 <Label htmlFor="mobile-closed-won" className="text-sm font-medium cursor-pointer">
-                  Revenue by Solution: Closed Won only
+                  Include Closed Won (by solution)
                 </Label>
                 <Switch
                   id="mobile-closed-won"
-                  checked={closedWonOnly}
-                  onCheckedChange={setClosedWonOnly}
+                  checked={includeClosedWon}
+                  onCheckedChange={setIncludeClosedWon}
                 />
               </div>
               {hasActiveFilters && (
@@ -213,11 +213,11 @@ export function AnalyticsPage() {
             <div className="flex items-center gap-2">
               <Switch
                 id="desktop-closed-won"
-                checked={closedWonOnly}
-                onCheckedChange={setClosedWonOnly}
+                checked={includeClosedWon}
+                onCheckedChange={setIncludeClosedWon}
               />
               <Label htmlFor="desktop-closed-won" className="text-sm cursor-pointer whitespace-nowrap">
-                Closed Won only
+                Include Closed Won
               </Label>
             </div>
             {hasActiveFilters && (
@@ -274,8 +274,8 @@ export function AnalyticsPage() {
           data={solutionData}
           title="Revenue by Solution"
           onSliceClick={setSelectedSolution}
-          closedWonOnly={closedWonOnly}
-          onClosedWonChange={setClosedWonOnly}
+          closedWonOnly={includeClosedWon}
+          onClosedWonChange={setIncludeClosedWon}
         />
         <PipelineChart
           data={stageData}

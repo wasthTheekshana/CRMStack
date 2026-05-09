@@ -89,7 +89,7 @@ export function SolutionPieChart({
                 onCheckedChange={onClosedWonChange}
               />
               <Label htmlFor="pie-closed-won" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
-                Closed Won only
+                Include Closed Won
               </Label>
             </div>
           )}
