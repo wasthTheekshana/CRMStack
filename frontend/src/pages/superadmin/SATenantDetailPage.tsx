@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Ban, CheckCircle, Download, Trash2, Loader2, AlertCircle, Users, BarChart2, KeyRound } from 'lucide-react'
+import { ArrowLeft, Ban, CheckCircle, Download, Trash2, Loader2, AlertCircle, Users, BarChart2, KeyRound, FlaskConical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  saGetTenantDetail, saUpdateTenant, saExportTenantCSV, saDeleteTenant, SATenant,
+  saGetTenantDetail, saUpdateTenant, saExportTenantCSV, saDeleteTenant, saSetFreeTrial, SATenant,
 } from '@/services/saService'
 import { ChangePasswordModal } from '@/components/superadmin/ChangePasswordModal'
 import { toast } from 'sonner'
@@ -44,6 +44,8 @@ export function SATenantDetailPage() {
   const [deleteOpen, setDeleteOpen]   = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [pwTarget, setPwTarget] = useState<{ id: string; email: string } | null>(null)
+  const [trialDate, setTrialDate] = useState('')
+  const [trialSaving, setTrialSaving] = useState(false)
 
   const load = () => {
     if (!id) return
@@ -53,6 +55,7 @@ export function SATenantDetailPage() {
         setDetail(d)
         setEditPlan(d.tenant.plan)
         setEditLimit(String(d.tenant.userLimit))
+        setTrialDate(d.tenant.trialEndsAt ? d.tenant.trialEndsAt.slice(0, 10) : '')
       })
       .catch(() => toast.error('Failed to load tenant'))
       .finally(() => setLoading(false))
@@ -83,6 +86,34 @@ export function SATenantDetailPage() {
       toast.error('Failed to update tenant')
     } finally {
       setEditSaving(false)
+    }
+  }
+
+  const handleEnableTrial = async () => {
+    if (!id || !trialDate) return
+    setTrialSaving(true)
+    try {
+      await saSetFreeTrial(id, trialDate)
+      toast.success('Free trial enabled')
+      load()
+    } catch {
+      toast.error('Failed to enable trial')
+    } finally {
+      setTrialSaving(false)
+    }
+  }
+
+  const handleEndTrial = async () => {
+    if (!id) return
+    setTrialSaving(true)
+    try {
+      await saSetFreeTrial(id, null)
+      toast.success('Free trial ended — account set to active')
+      load()
+    } catch {
+      toast.error('Failed to end trial')
+    } finally {
+      setTrialSaving(false)
     }
   }
 
@@ -234,6 +265,84 @@ export function SATenantDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Free Trial */}
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-white text-base flex items-center gap-2">
+            <FlaskConical className="h-4 w-4 text-yellow-400" />
+            Free Trial
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tenant.status === 'trial' ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-yellow-400 text-sm font-medium">
+                <FlaskConical className="h-4 w-4" />
+                Trial active
+                {tenant.trialEndsAt && (
+                  <span className="text-slate-400 font-normal">
+                    · expires {new Date(tenant.trialEndsAt).toLocaleDateString()}
+                    {' '}({Math.max(0, Math.round((new Date(tenant.trialEndsAt).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86_400_000))} days left)
+                  </span>
+                )}
+              </div>
+              <div className="flex items-end gap-3">
+                <div className="space-y-1 flex-1">
+                  <Label className="text-slate-400 text-sm">Extend expiry date</Label>
+                  <input
+                    type="date"
+                    value={trialDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setTrialDate(e.target.value)}
+                    className="w-full rounded-md border border-slate-600 bg-slate-700 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <Button
+                  className="bg-indigo-600 hover:bg-indigo-700 whitespace-nowrap"
+                  onClick={handleEnableTrial}
+                  disabled={trialSaving || !trialDate}
+                >
+                  {trialSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Update Expiry
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-red-700 text-red-400 hover:bg-red-900/20 whitespace-nowrap"
+                  onClick={handleEndTrial}
+                  disabled={trialSaving}
+                >
+                  End Trial
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-slate-400 text-sm">No active free trial. Set an expiry date to enable one.</p>
+              <div className="flex items-end gap-3">
+                <div className="space-y-1 flex-1">
+                  <Label className="text-slate-400 text-sm">Trial expiry date</Label>
+                  <input
+                    type="date"
+                    value={trialDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setTrialDate(e.target.value)}
+                    className="w-full rounded-md border border-slate-600 bg-slate-700 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <Button
+                  className="bg-yellow-600 hover:bg-yellow-700 whitespace-nowrap"
+                  onClick={handleEnableTrial}
+                  disabled={trialSaving || !trialDate}
+                >
+                  {trialSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Enable Trial
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4">

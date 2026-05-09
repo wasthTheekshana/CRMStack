@@ -194,15 +194,13 @@ export async function createTenant(req: Request, res: Response) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const initialStatus = trialEndsAt ? 'trial' : 'active';
     const tenantResult = await client.query(
-      `INSERT INTO tenants (name, subdomain, plan, status, user_limit, owner_email)
-       VALUES ($1, $2, $3, 'active', $4, $5) RETURNING *`,
-      [name, subdomain.toLowerCase().trim(), plan, userLimit, adminEmail]
+      `INSERT INTO tenants (name, subdomain, plan, status, user_limit, owner_email, trial_ends_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, subdomain.toLowerCase().trim(), plan, initialStatus, userLimit, adminEmail, trialEndsAt ?? null]
     );
     const tenant = tenantResult.rows[0];
-    if (trialEndsAt) {
-      await client.query('UPDATE tenants SET trial_ends_at = $1 WHERE id = $2', [trialEndsAt, tenant.id]);
-    }
     const username = adminEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     await client.query(
       `INSERT INTO users (tenant_id, email, username, display_name, password_hash, role, is_active)
@@ -284,8 +282,8 @@ export async function getTenantDetail(req: Request, res: Response) {
 
 export async function updateTenant(req: Request, res: Response) {
   const { id } = req.params;
-  const { plan, userLimit, status } = req.body;
-  const VALID_STATUSES = ['active', 'suspended', 'trial', 'cancelled'];
+  const { plan, userLimit, status, trialEndsAt } = req.body;
+  const VALID_STATUSES = ['active', 'trial', 'suspended', 'cancelled'];
   if (status !== undefined && !VALID_STATUSES.includes(status)) {
     res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
     return;
@@ -299,6 +297,16 @@ export async function updateTenant(req: Request, res: Response) {
     updates.push(`status = $${idx++}`); values.push(status);
     updates.push(status === 'suspended' ? `suspended_at = NOW()` : `suspended_at = NULL`);
   }
+  // trialEndsAt: explicit null clears it; a date string sets it
+  if (trialEndsAt !== undefined) {
+    if (trialEndsAt === null) {
+      updates.push(`trial_ends_at = NULL`);
+      updates.push(`trial_notified_7d = FALSE, trial_notified_5d = FALSE, trial_notified_2d = FALSE`);
+    } else {
+      updates.push(`trial_ends_at = $${idx++}`); values.push(trialEndsAt);
+      updates.push(`trial_notified_7d = FALSE, trial_notified_5d = FALSE, trial_notified_2d = FALSE`);
+    }
+  }
   if (!updates.length) { res.status(400).json({ error: 'No fields to update' }); return; }
   values.push(id);
   try {
@@ -307,7 +315,8 @@ export async function updateTenant(req: Request, res: Response) {
     );
     if (!result.rows.length) { res.status(404).json({ error: 'Tenant not found' }); return; }
     const t = result.rows[0];
-    res.json({ id: t.id, name: t.name, subdomain: t.subdomain, plan: t.plan, status: t.status, userLimit: t.user_limit });
+    res.json({ id: t.id, name: t.name, subdomain: t.subdomain, plan: t.plan,
+               status: t.status, userLimit: t.user_limit, trialEndsAt: t.trial_ends_at });
   } catch (err) {
     console.error('SA updateTenant error:', err);
     res.status(500).json({ error: 'Internal server error' });

@@ -54,7 +54,7 @@ export async function login(req: Request, res: Response) {
     }
 
     const tenant = req.tenant ?? await findTenantById(user.tenant_id);
-    if (!tenant || tenant.status !== 'active') {
+    if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
       res.status(403).json({ error: 'Tenant is inactive or suspended' });
       return;
     }
@@ -78,13 +78,14 @@ export async function login(req: Request, res: Response) {
 
     res.json({
       user: {
-        id:          user.id,
-        email:       user.email,
-        username:    user.username,
-        displayName: user.display_name,
-        role:        user.role,
-        tenantId:    tenant.id,
-        plan:        tenant.plan,
+        id:           user.id,
+        email:        user.email,
+        username:     user.username,
+        displayName:  user.display_name,
+        role:         user.role,
+        tenantId:     tenant.id,
+        plan:         tenant.plan,
+        trialEndsAt:  tenant.trialEndsAt ?? null,
       },
     });
   } catch (err) {
@@ -111,11 +112,14 @@ export async function me(req: Request, res: Response) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tenantId: string; plan: string };
-    const result = await query(
-      'SELECT id, email, username, display_name, role, is_active, tenant_id FROM users WHERE id = $1',
-      [payload.userId]
-    );
-    const user = result.rows[0];
+    const [userResult, tenantResult] = await Promise.all([
+      query(
+        'SELECT id, email, username, display_name, role, is_active, tenant_id FROM users WHERE id = $1',
+        [payload.userId]
+      ),
+      query('SELECT trial_ends_at FROM tenants WHERE id = $1', [payload.tenantId]),
+    ]);
+    const user = userResult.rows[0];
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
@@ -129,6 +133,7 @@ export async function me(req: Request, res: Response) {
       isActive:    user.is_active,
       tenantId:    payload.tenantId,
       plan:        payload.plan,
+      trialEndsAt: tenantResult.rows[0]?.trial_ends_at ?? null,
     });
   } catch {
     res.status(401).json({ error: 'Invalid token' });

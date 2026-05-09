@@ -4,14 +4,15 @@ import { apiFetch } from '@/config/api'
 import { User } from '@/types'
 
 interface AuthUser {
-  id:          string
-  email:       string
-  username:    string
-  displayName: string
-  role:        'admin' | 'sales'
-  isActive:    boolean
-  tenantId:    string
-  plan:        string
+  id:           string
+  email:        string
+  username:     string
+  displayName:  string
+  role:         'admin' | 'sales'
+  isActive:     boolean
+  tenantId:     string
+  plan:         string
+  trialEndsAt:  string | null
 }
 
 interface AuthState {
@@ -152,4 +153,9 @@ export const useTenantId = () => {
 export const usePlan = () => {
   const user = useAuthStore((state) => state.user)
   return user?.plan ?? null
+}
+
+export const useTrialEndsAt = () => {
+  const user = useAuthStore((state) => state.user)
+  return user?.trialEndsAt ?? null
 }

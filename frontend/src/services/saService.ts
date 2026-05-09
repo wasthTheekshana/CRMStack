@@ -90,8 +90,23 @@ export const saGetTenantDetail = (id: string) =>
     `/api/super-admin/tenants/${id}`
   )
 
-export const saUpdateTenant = (id: string, data: { plan?: string; userLimit?: number; status?: string }) =>
+export const saUpdateTenant = (id: string, data: { plan?: string; userLimit?: number; status?: string; trialEndsAt?: string | null }) =>
   saFetch<SATenant>(`/api/super-admin/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+
+/**
+ * Enable free trial (pass ISO date string) or end it (pass null).
+ * Enabling sets status='trial' + trial_ends_at.
+ * Ending sets status='active' + clears trial_ends_at.
+ */
+export const saSetFreeTrial = (id: string, trialEndsAt: string | null) =>
+  saFetch<SATenant>(`/api/super-admin/tenants/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(
+      trialEndsAt !== null
+        ? { status: 'trial', trialEndsAt }
+        : { status: 'active', trialEndsAt: null }
+    ),
+  })
 
 export const saExportTenantCSV = (id: string) =>
   fetch(`${API_BASE_URL}/api/super-admin/tenants/${id}/export`, {

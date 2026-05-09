@@ -32,7 +32,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as AuthPayload;
     req.user = payload;
-    if (req.tenant && req.tenant.status !== 'active') {
+    if (req.tenant && req.tenant.status !== 'active' && req.tenant.status !== 'trial') {
       res.status(403).json({
         error: 'TENANT_SUSPENDED',
         message: 'Your account has been suspended. Please contact support.',

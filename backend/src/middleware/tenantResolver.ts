@@ -25,7 +25,7 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
     const subdomain = req.headers['x-tenant-subdomain'] as string | undefined;
     if (subdomain) {
       const tenant = await findTenantBySubdomain(subdomain);
-      if (!tenant || tenant.status !== 'active') {
+      if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
         res.status(404).json({ error: 'Tenant not found or suspended' });
         return;
       }
@@ -38,7 +38,7 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
       const tenantId = req.headers['x-tenant-id'] as string | undefined;
       if (tenantId) {
         const tenant = await findTenantById(tenantId);
-        if (!tenant || tenant.status !== 'active') {
+        if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
           res.status(404).json({ error: 'Tenant not found or suspended' });
           return;
         }
@@ -73,7 +73,7 @@ export async function resolveTenantOptional(req: Request, res: Response, next: N
     const subdomain = req.headers['x-tenant-subdomain'] as string | undefined;
     if (subdomain) {
       const tenant = await findTenantBySubdomain(subdomain);
-      if (tenant && tenant.status === 'active') {
+      if (tenant && (tenant.status === 'active' || tenant.status === 'trial')) {
         req.tenant = tenant;
       }
       return next();
@@ -83,7 +83,7 @@ export async function resolveTenantOptional(req: Request, res: Response, next: N
       const tenantId = req.headers['x-tenant-id'] as string | undefined;
       if (tenantId) {
         const tenant = await findTenantById(tenantId);
-        if (tenant && tenant.status === 'active') {
+        if (tenant && (tenant.status === 'active' || tenant.status === 'trial')) {
           req.tenant = tenant;
         }
         return next();

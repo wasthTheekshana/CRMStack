@@ -2,11 +2,13 @@ import cron from 'node-cron';
 import { findTasksDueToday, findOverdueTasks } from './models/taskModel';
 import { getLeadsWithPendingReminders, markReminderSent } from './models/leadExpiryModel';
 import { findAdminsByTenant } from './models/userModel';
+import { findExpiringTrialTenants, markTrialNotified, updateTenant } from './models/tenantModel';
 import {
   notifyTaskDueToday,
   notifyTaskOverdue,
   notifyLeadExpiryReminder,
 } from './services/notificationService';
+import { sendTrialExpiryWarningEmail, sendTrialExpiredEmail } from './services/emailService';
 import { pool } from './config/db';
 
 // H5: Distributed lock key — prevents duplicate runs in multi-instance deployments
@@ -71,6 +73,55 @@ function todayMidnight(): Date {
 
 const daysMap: Record<string, number> = { '7d': 7, '5d': 5, '2d': 2, '1d': 1, 'expired': 0 };
 
+async function checkTrialExpiry(): Promise<void> {
+  try {
+    const tenants = await findExpiringTrialTenants();
+    const today = todayMidnight();
+    let suspended = 0;
+    let warned = 0;
+
+    for (const t of tenants) {
+      const expiry = new Date(t.trialEndsAt);
+      expiry.setHours(0, 0, 0, 0);
+      const daysLeft = Math.round((expiry.getTime() - today.getTime()) / 86_400_000);
+
+      if (daysLeft <= 0) {
+        // Trial has expired — suspend account and notify
+        await updateTenant(t.id, { status: 'suspended' });
+        await sendTrialExpiredEmail(t.ownerEmail, t.name).catch((err) =>
+          console.error(`[Scheduler] Failed to send trial-expired email to ${t.ownerEmail}:`, err)
+        );
+        suspended++;
+        continue;
+      }
+
+      if (daysLeft <= 2 && !t.notified2d) {
+        await sendTrialExpiryWarningEmail(t.ownerEmail, t.name, daysLeft).catch((err) =>
+          console.error(`[Scheduler] Failed to send 2d warning to ${t.ownerEmail}:`, err)
+        );
+        await markTrialNotified(t.id, '2d');
+        warned++;
+      } else if (daysLeft <= 5 && !t.notified5d) {
+        await sendTrialExpiryWarningEmail(t.ownerEmail, t.name, daysLeft).catch((err) =>
+          console.error(`[Scheduler] Failed to send 5d warning to ${t.ownerEmail}:`, err)
+        );
+        await markTrialNotified(t.id, '5d');
+        warned++;
+      } else if (daysLeft <= 7 && !t.notified7d) {
+        await sendTrialExpiryWarningEmail(t.ownerEmail, t.name, daysLeft).catch((err) =>
+          console.error(`[Scheduler] Failed to send 7d warning to ${t.ownerEmail}:`, err)
+        );
+        await markTrialNotified(t.id, '7d');
+        warned++;
+      }
+    }
+
+    console.log(`[Scheduler] Trial check: ${suspended} suspended, ${warned} warnings sent`);
+  } catch (err) {
+    console.error('[Scheduler] Error processing trial expiry:', err);
+  }
+}
+
 async function checkLeadExpiry(): Promise<void> {
   try {
     const rows = await getLeadsWithPendingReminders();
@@ -123,6 +174,7 @@ export function startScheduler(): void {
       console.log('[Scheduler] Running daily jobs');
       await checkTaskNotifications();
       await checkLeadExpiry();
+      await checkTrialExpiry();
     } finally {
       await release();
     }

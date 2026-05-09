@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { TrialBanner } from './TrialBanner'
 import { cn } from '@/lib/utils/cn'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useBranding } from '@/store/tenantStore'
@@ -97,6 +98,7 @@ export function AppLayout() {
           onMenuClick={() => setMobileMenuOpen(true)}
           showMenuButton={isMobile}
         />
+        <TrialBanner />
         <main className="p-4 md:p-6">
           <Outlet />
         </main>
