@@ -298,13 +298,12 @@ export async function updateTenant(req: Request, res: Response) {
     updates.push(status === 'suspended' ? `suspended_at = NOW()` : `suspended_at = NULL`);
   }
   // trialEndsAt: explicit null clears it; a date string sets it
+  const resetNotifiedFlags = trialEndsAt !== undefined; // reset when trial date changes
   if (trialEndsAt !== undefined) {
     if (trialEndsAt === null) {
       updates.push(`trial_ends_at = NULL`);
-      updates.push(`trial_notified_7d = FALSE, trial_notified_5d = FALSE, trial_notified_2d = FALSE`);
     } else {
       updates.push(`trial_ends_at = $${idx++}`); values.push(trialEndsAt);
-      updates.push(`trial_notified_7d = FALSE, trial_notified_5d = FALSE, trial_notified_2d = FALSE`);
     }
   }
   if (!updates.length) { res.status(400).json({ error: 'No fields to update' }); return; }
@@ -314,6 +313,13 @@ export async function updateTenant(req: Request, res: Response) {
       `UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`, values
     );
     if (!result.rows.length) { res.status(404).json({ error: 'Tenant not found' }); return; }
+    // Reset warning-sent flags separately so a missing migration column doesn't break the main update
+    if (resetNotifiedFlags) {
+      await query(
+        `UPDATE tenants SET trial_notified_7d = FALSE, trial_notified_5d = FALSE, trial_notified_2d = FALSE WHERE id = $1`,
+        [id]
+      ).catch(() => { /* columns added by migration 016 — safe to ignore until migrated */ });
+    }
     const t = result.rows[0];
     res.json({ id: t.id, name: t.name, subdomain: t.subdomain, plan: t.plan,
                status: t.status, userLimit: t.user_limit, trialEndsAt: t.trial_ends_at });
