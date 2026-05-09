@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { Loader2, Filter, X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -24,16 +26,18 @@ import { FunnelChart } from '@/components/charts/FunnelChart'
 import { useLeads } from '@/hooks/useLeads'
 import { useStageData, useSolutionData, useKPIs } from '@/hooks/useKPIs'
 import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
-import { useSalesStages } from '@/store/tenantStore'
+import { useSalesStages, useWonStages } from '@/store/tenantStore'
 
 export function AnalyticsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all')
   const [solutionFilter, setSolutionFilter] = useState<string>('all')
+  const [closedWonOnly, setClosedWonOnly] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedSolution, setSelectedSolution] = useState<string | null>(null)
 
   const { leads, isLoading } = useLeads()
   const salesStages = useSalesStages()
+  const wonStages = useWonStages()
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -55,25 +59,32 @@ export function AnalyticsPage() {
     })
   }, [leads, stageFilter, solutionFilter])
 
+  // solutionLeads is filteredLeads further narrowed to Closed Won when the toggle is on.
+  // Kept separate so the toggle only affects the Revenue by Solution card and its drill-down.
+  const solutionLeads = useMemo(() => {
+    if (!closedWonOnly) return filteredLeads
+    return filteredLeads.filter(l => wonStages.includes(l.salesStage))
+  }, [filteredLeads, closedWonOnly, wonStages])
+
   const kpis = useKPIs(filteredLeads)
   const stageData = useStageData(filteredLeads)
-  const solutionData = useSolutionData(filteredLeads)
+  const solutionData = useSolutionData(solutionLeads)
 
   const sheetLeads = useMemo(() => {
     if (!selectedSolution) return []
     if (/^Others \(\d+\)$/.test(selectedSolution)) {
-      // processChartData(data, 8) takes topCount-1=7 individual slices; rest go into "Others"
       const top7 = new Set(solutionData.slice(0, 7).map(d => d.solution))
-      return filteredLeads.filter(l => !top7.has(l.solution || 'Other'))
+      return solutionLeads.filter(l => !top7.has(l.solution || 'Other'))
     }
-    return filteredLeads.filter(l => (l.solution || 'Other') === selectedSolution)
-  }, [selectedSolution, solutionData, filteredLeads])
+    return solutionLeads.filter(l => (l.solution || 'Other') === selectedSolution)
+  }, [selectedSolution, solutionData, solutionLeads])
 
-  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all'
+  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || closedWonOnly
 
   const clearFilters = () => {
     setStageFilter('all')
     setSolutionFilter('all')
+    setClosedWonOnly(false)
   }
 
   if (isLoading) {
@@ -142,6 +153,16 @@ export function AnalyticsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center justify-between py-1">
+                <Label htmlFor="mobile-closed-won" className="text-sm font-medium cursor-pointer">
+                  Revenue by Solution: Closed Won only
+                </Label>
+                <Switch
+                  id="mobile-closed-won"
+                  checked={closedWonOnly}
+                  onCheckedChange={setClosedWonOnly}
+                />
+              </div>
               {hasActiveFilters && (
                 <Button variant="ghost" onClick={clearFilters} className="w-full">
                   <X className="h-4 w-4 mr-2" />
@@ -189,6 +210,16 @@ export function AnalyticsPage() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="desktop-closed-won"
+                checked={closedWonOnly}
+                onCheckedChange={setClosedWonOnly}
+              />
+              <Label htmlFor="desktop-closed-won" className="text-sm cursor-pointer whitespace-nowrap">
+                Closed Won only
+              </Label>
+            </div>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="h-4 w-4 mr-1" />
@@ -243,6 +274,8 @@ export function AnalyticsPage() {
           data={solutionData}
           title="Revenue by Solution"
           onSliceClick={setSelectedSolution}
+          closedWonOnly={closedWonOnly}
+          onClosedWonChange={setClosedWonOnly}
         />
         <PipelineChart
           data={stageData}

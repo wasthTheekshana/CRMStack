@@ -7,6 +7,8 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { SolutionData } from '@/types'
 import { formatCurrency, formatCompactCurrency } from '@/lib/utils/formatters'
 import { CHART_COLORS } from '@/config/constants'
@@ -15,6 +17,8 @@ interface SolutionPieChartProps {
   data: SolutionData[]
   title?: string
   onSliceClick?: (solution: string) => void
+  closedWonOnly?: boolean
+  onClosedWonChange?: (value: boolean) => void
 }
 
 // Group smaller solutions into "Others" category
@@ -56,6 +60,8 @@ export function SolutionPieChart({
   data,
   title = 'Revenue by Solution',
   onSliceClick,
+  closedWonOnly = false,
+  onClosedWonChange,
 }: SolutionPieChartProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
@@ -73,7 +79,21 @@ export function SolutionPieChart({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">{title}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-lg">{title}</CardTitle>
+          {onClosedWonChange && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Switch
+                id="pie-closed-won"
+                checked={closedWonOnly}
+                onCheckedChange={onClosedWonChange}
+              />
+              <Label htmlFor="pie-closed-won" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                Closed Won only
+              </Label>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col lg:flex-row gap-4">
