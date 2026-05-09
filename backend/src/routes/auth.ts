@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { login, logout, me, forgotPassword, verifyResetToken, resetPassword } from '../controllers/authController';
-import { resolveTenant } from '../middleware/tenantResolver';
+import { resolveTenantOptional } from '../middleware/tenantResolver';
 
 const router = Router();
 
@@ -33,7 +33,7 @@ const resetLimiter = rateLimit({
   message: { error: 'Too many attempts, please try again later' },
 });
 
-router.post('/login',               loginLimiter,   resolveTenant, login);
+router.post('/login',               loginLimiter,   resolveTenantOptional, login);
 router.post('/logout',              logout);
 router.get('/me',                   me);
 router.post('/forgot-password',     forgotLimiter,  forgotPassword);

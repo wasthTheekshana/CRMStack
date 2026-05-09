@@ -62,3 +62,40 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
     res.status(500).json({ error: 'Server error' });
   }
 }
+
+/**
+ * Like resolveTenant but non-blocking: if no tenant can be determined,
+ * calls next() with req.tenant left undefined instead of returning 400.
+ * Use on routes (e.g. login) that can operate without a resolved tenant.
+ */
+export async function resolveTenantOptional(req: Request, res: Response, next: NextFunction) {
+  try {
+    const subdomain = req.headers['x-tenant-subdomain'] as string | undefined;
+    if (subdomain) {
+      const tenant = await findTenantBySubdomain(subdomain);
+      if (tenant && tenant.status === 'active') {
+        req.tenant = tenant;
+      }
+      return next();
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      const tenantId = req.headers['x-tenant-id'] as string | undefined;
+      if (tenantId) {
+        const tenant = await findTenantById(tenantId);
+        if (tenant && tenant.status === 'active') {
+          req.tenant = tenant;
+        }
+        return next();
+      }
+
+      const tenant = await findTenantBySubdomain('dok');
+      if (tenant) req.tenant = tenant;
+    }
+
+    next();
+  } catch (err) {
+    console.error('tenantResolver error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
