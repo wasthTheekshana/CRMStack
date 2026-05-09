@@ -9,6 +9,7 @@ import {
   Mail,
   Building2,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ import {
 import {
   getAllUsers,
   createUserProfile,
+  updateUserProfile,
   updateUserStatus,
   reassignLeads,
   getLeadCountByUser,
@@ -59,6 +61,7 @@ export function TeamManagement() {
 
   // Dialog states
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [showReassignDialog, setShowReassignDialog] = useState(false)
   const [showStatusConfirm, setShowStatusConfirm] = useState(false)
 
@@ -68,6 +71,11 @@ export function TeamManagement() {
     email: '',
     password: '',
     displayName: '',
+  })
+  const [editForm, setEditForm] = useState({
+    displayName: '',
+    email: '',
+    password: '',
   })
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [targetUserId, setTargetUserId] = useState<string>('')
@@ -158,6 +166,48 @@ export function TeamManagement() {
         setError('Email or username is already in use')
       } else {
         setError('Failed to create user. Please try again.')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Edit user (name, email, password)
+  const handleEditUser = async () => {
+    if (!selectedUser) return
+    if (!editForm.displayName.trim()) {
+      setError('Full name is required')
+      return
+    }
+    if (!editForm.email.trim()) {
+      setError('Email is required')
+      return
+    }
+    if (editForm.password && editForm.password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const payload: { displayName: string; email: string; password?: string } = {
+        displayName: editForm.displayName.trim(),
+        email: editForm.email.trim(),
+      }
+      if (editForm.password) payload.password = editForm.password
+
+      await updateUserProfile(selectedUser.uid, payload)
+      setShowEditDialog(false)
+      setSelectedUser(null)
+      setEditForm({ displayName: '', email: '', password: '' })
+      await fetchData()
+    } catch (err: unknown) {
+      const msg = (err as Error).message || ''
+      if (msg.includes('already in use') || msg.includes('already exists')) {
+        setError('Email is already in use by another team member')
+      } else {
+        setError('Failed to update user. Please try again.')
       }
     } finally {
       setIsSubmitting(false)
@@ -352,6 +402,21 @@ export function TeamManagement() {
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto md:ml-0">
+                  {/* Edit button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedUser(user)
+                      setEditForm({ displayName: user.displayName, email: user.email, password: '' })
+                      setError(null)
+                      setShowEditDialog(true)
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+
                   {/* Reassign button - show if user has leads */}
                   {(leadCounts[user.uid] || 0) > 0 && (
                     <Button
@@ -489,6 +554,73 @@ export function TeamManagement() {
             <Button onClick={handleCreateUser} disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Create Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open)
+        if (!open) { setSelectedUser(null); setError(null) }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+            <DialogDescription>
+              Update name, email, or password for{' '}
+              <strong>{selectedUser?.displayName}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-displayName">Full Name</Label>
+              <Input
+                id="edit-displayName"
+                value={editForm.displayName}
+                onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-password">New Password</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                placeholder="Leave blank to keep current password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Min 6 characters if changing</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditDialog(false)
+                setSelectedUser(null)
+                setError(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEditUser} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -118,7 +118,7 @@ export async function createUserHandler(req: Request, res: Response) {
 }
 
 export async function updateUserHandler(req: Request, res: Response) {
-  const { displayName, role, isActive, password } = req.body;
+  const { displayName, email, role, isActive, password } = req.body;
   // Hash before acquiring the DB lock — bcrypt is CPU-bound, not DB-bound
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
   const client = await pool.connect();
@@ -165,17 +165,30 @@ export async function updateUserHandler(req: Request, res: Response) {
         }
       }
     }
+    // Check email uniqueness within tenant (excluding current user)
+    if (email) {
+      const emailCheck = await client.query(
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 AND id != $3',
+        [email, req.user!.tenantId, req.params.id]
+      );
+      if (emailCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ error: 'Email already in use' });
+        return;
+      }
+    }
     if (passwordHash) {
       await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, req.params.id]);
     }
     const updateResult = await client.query(
       `UPDATE users
          SET display_name = COALESCE($1, display_name),
-             role         = COALESCE($2, role),
-             is_active    = COALESCE($3, is_active)
-       WHERE id = $4
+             email        = COALESCE($2, email),
+             role         = COALESCE($3, role),
+             is_active    = COALESCE($4, is_active)
+       WHERE id = $5
        RETURNING id, email, username, display_name, role, is_active, tenant_id`,
-      [displayName, role, isActive, req.params.id]
+      [displayName ?? null, email ?? null, role ?? null, isActive ?? null, req.params.id]
     );
     const updatedUser = mapUser(updateResult.rows[0]);
     await client.query('COMMIT');
