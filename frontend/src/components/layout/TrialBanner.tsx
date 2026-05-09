@@ -11,7 +11,7 @@ function daysUntil(isoDate: string): number {
 
 export function TrialBanner() {
   const trialEndsAt = useTrialEndsAt()
-  if (!trialEndsAt) return null
+if (!trialEndsAt) return null
 
   const days = daysUntil(trialEndsAt)
   if (days < 0) return null // already expired / suspended — backend handles this
