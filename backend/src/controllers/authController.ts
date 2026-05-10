@@ -29,10 +29,14 @@ export async function login(req: Request, res: Response) {
   }
 
   try {
-    // Scope login to the tenant only when nginx set the subdomain header
-    // (i.e. production). In local dev the header is absent so req.tenant is a
-    // fallback default — use global lookup instead so any test user can log in.
+    // Scope login to the tenant only when nginx set the subdomain header.
+    // If the header is present but the tenant wasn't resolved (unknown subdomain),
+    // reject immediately — never fall back to a global lookup in that case.
     const hasSubdomainHeader = !!req.headers['x-tenant-subdomain'];
+    if (hasSubdomainHeader && !req.tenant) {
+      res.status(404).json({ error: 'Tenant not found' });
+      return;
+    }
     const user = (hasSubdomainHeader && req.tenant)
       ? await findUserByUsernameInTenant(username, req.tenant.id)
       : await findUserByUsername(username);
