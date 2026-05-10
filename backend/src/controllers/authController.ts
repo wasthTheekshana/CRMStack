@@ -10,7 +10,7 @@ const AUTH_COOKIE_OPTIONS: CookieOptions = {
   sameSite: isProduction ? 'strict' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
-import { findUserByUsername, findUserByUsernameInTenant, updateLastLogin } from '../models/userModel';
+import { findUserByUsernameInTenant, updateLastLogin } from '../models/userModel';
 import { findTenantById } from '../models/tenantModel';
 import { query } from '../config/db';
 import { createResetToken, findValidToken, claimToken } from '../models/resetTokenModel';
@@ -29,17 +29,19 @@ export async function login(req: Request, res: Response) {
   }
 
   try {
-    // Scope login to the tenant only when nginx set the subdomain header.
-    // If the header is present but the tenant wasn't resolved (unknown subdomain),
-    // reject immediately — never fall back to a global lookup in that case.
+    // Tenant users must log in via their subdomain (e.g. acme.crmstack.site).
+    // nginx sets X-Tenant-Subdomain only on subdomain requests; absence means the
+    // request came through the root domain — reject it to prevent cross-tenant access.
     const hasSubdomainHeader = !!(req.headers['x-tenant-subdomain'] as string)?.trim();
-    if (hasSubdomainHeader && !req.tenant) {
+    if (!hasSubdomainHeader) {
+      res.status(403).json({ error: 'Please log in via your company subdomain' });
+      return;
+    }
+    if (!req.tenant) {
       res.status(404).json({ error: 'Tenant not found' });
       return;
     }
-    const user = (hasSubdomainHeader && req.tenant)
-      ? await findUserByUsernameInTenant(username, req.tenant.id)
-      : await findUserByUsername(username);
+    const user = await findUserByUsernameInTenant(username, req.tenant.id);
 
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
