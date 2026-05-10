@@ -341,13 +341,17 @@ export async function exportTenantCSV(req: Request, res: Response) {
       `SELECT email, display_name, role, is_active, created_at, last_login_at FROM users WHERE tenant_id = $1`, [id]
     );
     const leadsResult = await query(
-      `SELECT company_name, contact_name, contact_number, solution, sales_stage,
+      `SELECT company_name, contacts, solution, sales_stage,
               estimated_revenue, probability, remarks, created_at
        FROM leads WHERE tenant_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC`, [id]
     );
     const escape = (v: unknown) => {
       const s = v == null ? '' : String(v);
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const primaryContact = (contacts: Array<{ name?: string; phone?: string; isPrimary?: boolean }>) => {
+      const primary = contacts.find(c => c.isPrimary) ?? contacts[0];
+      return { name: primary?.name ?? '', phone: primary?.phone ?? '' };
     };
     const lines: string[] = [];
     lines.push('USERS');
@@ -359,7 +363,9 @@ export async function exportTenantCSV(req: Request, res: Response) {
     lines.push('LEADS');
     lines.push('Company,Contact,Phone,Solution,Stage,Revenue,Probability,Remarks,Created');
     leadsResult.rows.forEach((l: Record<string, unknown>) => {
-      lines.push([l.company_name, l.contact_name, l.contact_number, l.solution, l.sales_stage,
+      const contacts = Array.isArray(l.contacts) ? l.contacts as Array<{ name?: string; phone?: string; isPrimary?: boolean }> : [];
+      const { name, phone } = primaryContact(contacts);
+      lines.push([l.company_name, name, phone, l.solution, l.sales_stage,
                   l.estimated_revenue, l.probability, l.remarks, l.created_at].map(escape).join(','));
     });
     const csv = lines.join('\n');
