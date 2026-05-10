@@ -32,7 +32,8 @@ export async function login(req: Request, res: Response) {
     // Scope login to the tenant only when nginx set the subdomain header.
     // If the header is present but the tenant wasn't resolved (unknown subdomain),
     // reject immediately — never fall back to a global lookup in that case.
-    const hasSubdomainHeader = !!req.headers['x-tenant-subdomain'];
+    const hasSubdomainHeader = !!(req.headers['x-tenant-subdomain'] as string)?.trim();
+    console.log('[login] subdomain-header:', req.headers['x-tenant-subdomain'], '| req.tenant:', req.tenant?.subdomain ?? 'null');
     if (hasSubdomainHeader && !req.tenant) {
       res.status(404).json({ error: 'Tenant not found' });
       return;
@@ -40,6 +41,7 @@ export async function login(req: Request, res: Response) {
     const user = (hasSubdomainHeader && req.tenant)
       ? await findUserByUsernameInTenant(username, req.tenant.id)
       : await findUserByUsername(username);
+    console.log('[login] user found:', user?.id ?? 'null', '| user.tenant_id:', user?.tenant_id ?? 'null');
 
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
