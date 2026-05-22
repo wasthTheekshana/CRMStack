@@ -17,6 +17,7 @@ import {
   notifyLeadDeleted,
   notifyLeadRestored,
 } from '../services/notificationService';
+import { createActivity } from '../models/activityModel';
 
 const MAX_STR      = 500;   // short fields: names, stages, emails
 const MAX_TEXT     = 5000;  // free-text fields: remarks, hoUpdate
@@ -192,6 +193,14 @@ export async function updateLeadHandler(req: Request, res: Response) {
         companyName: lead.companyName as string,
         oldStage,
         newStage,
+      });
+      void createActivity({
+        leadId:      lead.id as string,
+        type:        'stage_change',
+        description: `Stage changed: ${oldStage} → ${newStage}`,
+        metadata:    null,
+        ownerId:     req.user!.userId,
+        tenantId:    req.user!.tenantId,
       });
     }
 
