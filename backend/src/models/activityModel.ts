@@ -17,11 +17,19 @@ export const mapActivity = (row: Record<string, unknown>) => ({
 export async function findAllActivities(userId: string, tenantId: string, isAdmin: boolean) {
   const result = isAdmin
     ? await query(
-        'SELECT * FROM activities WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100',
+        `SELECT a.*, u.display_name AS owner_name
+           FROM activities a
+           LEFT JOIN users u ON u.id = a.owner_id
+          WHERE a.tenant_id = $1
+          ORDER BY a.created_at DESC LIMIT 100`,
         [tenantId]
       )
     : await query(
-        'SELECT * FROM activities WHERE tenant_id = $1 AND owner_id = $2 ORDER BY created_at DESC LIMIT 100',
+        `SELECT a.*, u.display_name AS owner_name
+           FROM activities a
+           LEFT JOIN users u ON u.id = a.owner_id
+          WHERE a.tenant_id = $1 AND a.owner_id = $2
+          ORDER BY a.created_at DESC LIMIT 100`,
         [tenantId, userId]
       );
   return result.rows.map(mapActivity);

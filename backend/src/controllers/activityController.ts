@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { findAllActivities, findActivitiesByLead, createActivity } from '../models/activityModel';
 
+const MANUAL_TYPES: readonly string[] = ['note', 'call', 'email', 'meeting'];
+
 export async function listActivities(req: Request, res: Response) {
   try {
     const activities = await findAllActivities(req.user!.userId, req.user!.tenantId, req.user!.role === 'admin');
@@ -27,7 +29,6 @@ export async function createActivityHandler(req: Request, res: Response) {
     res.status(400).json({ error: 'type and description required' });
     return;
   }
-  const MANUAL_TYPES = ['note', 'call', 'email', 'meeting'] as const;
   if (!MANUAL_TYPES.includes(type)) {
     res.status(400).json({ error: 'Invalid activity type' });
     return;
