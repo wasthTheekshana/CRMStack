@@ -121,6 +121,6 @@ export async function findTasksByLead(leadId: string, tenantId: string) {
   );
   return result.rows.map((row) => ({
     ...mapTask(row),
-    ownerName: row.display_name as string | null,
+    ownerName: row.owner_name as string | null,
   }));
 }
