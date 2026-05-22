@@ -87,6 +87,7 @@ export interface Activity {
   description: string
   metadata?: Record<string, unknown>
   ownerId: string
+  ownerName?: string | null
   createdAt?: ISODateString
 }
 

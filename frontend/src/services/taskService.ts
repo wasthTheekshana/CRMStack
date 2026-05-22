@@ -4,6 +4,9 @@ import type { Task } from '../models';
 export const getTasks = () =>
   apiFetch<Task[]>('/api/tasks');
 
+export const getTasksByLead = (leadId: string) =>
+  apiFetch<Task[]>(`/api/tasks/lead/${leadId}`);
+
 export const getUpcomingTasks = async () => {
   const tasks = await apiFetch<Task[]>('/api/tasks');
   const now = new Date();
