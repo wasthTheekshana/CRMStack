@@ -9,7 +9,6 @@ dist-ssr/
 build/
 frontend/dist/
 backend/dist/
-docs/
 .claude/
 # ─── Environment / secrets ───────────────────────────────────────────────────
 .env
