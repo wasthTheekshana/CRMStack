@@ -109,3 +109,18 @@ export async function findOverdueTasks(): Promise<Array<{
     dueDate:  r.due_date  as string,
   }));
 }
+
+export async function findTasksByLead(leadId: string, tenantId: string) {
+  const result = await query(
+    `SELECT t.*, u.display_name AS owner_name
+       FROM tasks t
+       LEFT JOIN users u ON u.id = t.owner_id
+      WHERE t.lead_id = $1 AND t.tenant_id = $2
+      ORDER BY t.due_date ASC`,
+    [leadId, tenantId]
+  );
+  return result.rows.map((row) => ({
+    ...mapTask(row),
+    ownerName: row.display_name as string | null,
+  }));
+}

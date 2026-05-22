@@ -1,10 +1,20 @@
 import { Request, Response } from 'express';
-import { findAllTasks, createTask, updateTask, removeTask } from '../models/taskModel';
+import { findAllTasks, findTasksByLead, createTask, updateTask, removeTask } from '../models/taskModel';
 import { notifyTaskAssigned } from '../services/notificationService';
 
 export async function listTasks(req: Request, res: Response) {
   try {
     const tasks = await findAllTasks(req.user!.userId, req.user!.tenantId, req.user!.role === 'admin');
+    res.json(tasks);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function listTasksByLead(req: Request, res: Response) {
+  try {
+    const tasks = await findTasksByLead(req.params.leadId, req.user!.tenantId);
     res.json(tasks);
   } catch (err) {
     console.error(err);
