@@ -31,6 +31,7 @@ import { useIsAdmin } from '@/store/authStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { LeadExpiryPanel } from '@/components/leads/LeadExpiryPanel'
 import { getLeadCreatedAt } from '@/lib/utils/leadAge'
+import { ActivityTasksTab } from '@/components/leads/ActivityTasksTab'
 
 import { cn } from '@/lib/utils/cn'
 
@@ -75,12 +76,18 @@ export function DealModal({
   const customFields     = useCustomFields()
   const visibleFields    = useVisibleFields()
 
+  const [activeTab, setActiveTab] = useState<'details' | 'activity'>('details')
   const [isLoading, setIsLoading] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [validationError, setValidationError] = useState<string | null>(null)
   const [ownerState, setOwnerState] = useState<{ ownerId: string; ownerEmail: string } | null>(null)
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
+
+  // Reset tab when modal opens a different lead
+  useEffect(() => {
+    setActiveTab('details')
+  }, [lead?.id])
 
   // Sync local owner state when lead changes
   useEffect(() => {
@@ -285,6 +292,33 @@ export function DealModal({
           <DialogTitle>Edit Deal</DialogTitle>
         </DialogHeader>
 
+        {/* Tab bar — only when editing an existing lead */}
+        {lead && (
+          <div className="flex border-b mb-4 -mt-2">
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'details'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setActiveTab('details')}
+            >
+              Details
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'activity'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setActiveTab('activity')}
+            >
+              Activity & Tasks
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'details' && (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {validationError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700">
@@ -675,6 +709,13 @@ export function DealModal({
             </div>
           </DialogFooter>
         </form>
+        )}
+
+        {activeTab === 'activity' && lead && (
+          <div className="overflow-y-auto max-h-[60vh] px-1">
+            <ActivityTasksTab leadId={lead.id} />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
