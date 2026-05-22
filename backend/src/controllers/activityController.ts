@@ -27,6 +27,11 @@ export async function createActivityHandler(req: Request, res: Response) {
     res.status(400).json({ error: 'type and description required' });
     return;
   }
+  const MANUAL_TYPES = ['note', 'call', 'email', 'meeting'] as const;
+  if (!MANUAL_TYPES.includes(type)) {
+    res.status(400).json({ error: 'Invalid activity type' });
+    return;
+  }
   try {
     const activity = await createActivity({
       leadId:   leadId || null,

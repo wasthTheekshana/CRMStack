@@ -8,6 +8,7 @@ export const mapActivity = (row: Record<string, unknown>) => ({
   description: row.description,
   metadata:    row.metadata,
   ownerId:     row.owner_id,
+  ownerName:   row.owner_name as string | null,
   tenantId:    row.tenant_id,
   createdAt:   row.created_at,
 });
@@ -28,7 +29,11 @@ export async function findAllActivities(userId: string, tenantId: string, isAdmi
 
 export async function findActivitiesByLead(leadId: string, tenantId: string) {
   const result = await query(
-    'SELECT * FROM activities WHERE lead_id = $1 AND tenant_id = $2 ORDER BY created_at ASC',
+    `SELECT a.*, u.display_name AS owner_name
+       FROM activities a
+       LEFT JOIN users u ON u.id = a.owner_id
+      WHERE a.lead_id = $1 AND a.tenant_id = $2
+      ORDER BY a.created_at DESC`,
     [leadId, tenantId]
   );
   return result.rows.map(mapActivity);
