@@ -19,6 +19,7 @@ import {
 } from '../services/notificationService';
 import { createActivity } from '../models/activityModel';
 import { countActiveLeads } from '../models/tenantModel';
+import { findConfigByTenantId } from '../models/tenantConfigModel';
 
 const MAX_STR      = 500;   // short fields: names, stages, emails
 const MAX_TEXT     = 5000;  // free-text fields: remarks, hoUpdate
@@ -58,6 +59,26 @@ function validateLeadFields(body: Record<string, unknown>): string | null {
   }
 
   return null; // valid
+}
+
+async function validateRequiredCustomFields(
+  tenantId: string,
+  customFields: Record<string, unknown>
+): Promise<string | null> {
+  const config = await findConfigByTenantId(tenantId)
+  if (!config) return null
+  for (const field of config.customFields) {
+    if (!field.required) continue
+    const value = customFields[field.id]
+    const isEmpty =
+      value == null ||
+      (typeof value === 'string' && value.trim() === '') ||
+      (field.type === 'checkbox' && value === false)
+    if (isEmpty) {
+      return `"${field.name}" is required`
+    }
+  }
+  return null
 }
 
 export async function listLeads(req: Request, res: Response) {
@@ -130,6 +151,15 @@ export async function createLeadHandler(req: Request, res: Response) {
       }
     }
 
+    const cfError = await validateRequiredCustomFields(
+      req.user!.tenantId,
+      (customFields as Record<string, unknown>) ?? {}
+    )
+    if (cfError) {
+      res.status(400).json({ error: cfError })
+      return
+    }
+
     const lead = await createLead({
       companyName, solution,
       contacts:         contacts || [],
@@ -178,6 +208,18 @@ export async function updateLeadHandler(req: Request, res: Response) {
     if (validationError) {
       res.status(400).json({ error: validationError });
       return;
+    }
+
+    if (customFields != null) {
+      const merged = {
+        ...(existingLead.customFields as Record<string, unknown> ?? {}),
+        ...(customFields as Record<string, unknown>),
+      }
+      const cfError = await validateRequiredCustomFields(req.user!.tenantId, merged)
+      if (cfError) {
+        res.status(400).json({ error: cfError })
+        return
+      }
     }
 
     const lead = await updateLead(req.params.id, req.user!.tenantId, {
