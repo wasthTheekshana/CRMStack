@@ -7,6 +7,8 @@ import {
   updateLead as updateLeadFn,
   deleteLead as deleteLeadFn,
   reassignLead as reassignLeadFn,
+  bulkUpdateLeads as bulkUpdateLeadsFn,
+  bulkDeleteLeads as bulkDeleteLeadsFn,
 } from '@/lib/api/collections'
 
 const POLL_INTERVAL_MS = 30_000 // poll every 30 seconds
@@ -91,6 +93,21 @@ export function useLeads() {
     setLeads(prev => prev.filter(l => l.id !== id))
   }, [])
 
+  const bulkUpdate = useCallback(
+    async (ids: string[], update: { salesStage?: string; ownerId?: string; ownerEmail?: string }) => {
+      await bulkUpdateLeadsFn(ids, update)
+      const idSet = new Set(ids)
+      setLeads(prev => prev.map(l => idSet.has(l.id) ? { ...l, ...update } : l))
+    },
+    []
+  )
+
+  const bulkDelete = useCallback(async (ids: string[]) => {
+    await bulkDeleteLeadsFn(ids)
+    const idSet = new Set(ids)
+    setLeads(prev => prev.filter(l => !idSet.has(l.id)))
+  }, [])
+
   const updateLeadStage = useCallback(
     async (id: string, newStage: SalesStage, probability?: number) => {
       const updated = await updateLeadFn(id, { salesStage: newStage, ...(probability !== undefined && { probability }) })
@@ -127,6 +144,8 @@ export function useLeads() {
     updateLeadStage,
     updateLeadPosition,
     reassignLead,
+    bulkUpdate,
+    bulkDelete,
     refetch: fetchLeads,
   }
 }
