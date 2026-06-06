@@ -305,3 +305,76 @@ export async function deleteAllLeadsHandler(req: Request, res: Response) {
     res.status(500).json({ error: 'Server error' });
   }
 }
+
+export async function bulkUpdateLeads(req: Request, res: Response) {
+  const { ids, update } = req.body as {
+    ids:    string[]
+    update: { salesStage?: string; ownerId?: string; ownerEmail?: string }
+  }
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' })
+    return
+  }
+
+  const MAX_BULK = 500
+  if (ids.length > MAX_BULK) {
+    res.status(400).json({ error: `Cannot bulk-process more than ${MAX_BULK} leads at once` })
+    return
+  }
+
+  const ALLOWED_FIELDS = ['salesStage', 'ownerId', 'ownerEmail']
+  const keys = Object.keys(update ?? {})
+  if (keys.length === 0 || keys.some(k => !ALLOWED_FIELDS.includes(k))) {
+    res.status(400).json({ error: 'update must contain only: salesStage, ownerId, ownerEmail' })
+    return
+  }
+
+  if ((update.ownerId != null) !== (update.ownerEmail != null)) {
+    res.status(400).json({ error: 'ownerId and ownerEmail must be provided together' })
+    return
+  }
+
+  try {
+    const { tenantId, userId, role } = req.user!
+    const results: { id: string; ok: boolean }[] = []
+    for (const id of ids) {
+      const ownerId = await getLeadOwnerId(id, tenantId)
+      if (!ownerId) { results.push({ id, ok: false }); continue }
+      if (role !== 'admin' && ownerId !== userId) { results.push({ id, ok: false }); continue }
+      await updateLead(id, tenantId, update)
+      results.push({ id, ok: true })
+    }
+    res.json({ results, updated: results.filter(r => r.ok).length })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+}
+
+export async function bulkDeleteLeads(req: Request, res: Response) {
+  const { ids } = req.body as { ids: string[] }
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' })
+    return
+  }
+
+  const MAX_BULK = 500
+  if (ids.length > MAX_BULK) {
+    res.status(400).json({ error: `Cannot bulk-process more than ${MAX_BULK} leads at once` })
+    return
+  }
+
+  try {
+    const { tenantId } = req.user!
+    let deleted = 0
+    for (const id of ids) {
+      const ok = await softDeleteLead(id, tenantId)
+      if (ok) deleted++
+    }
+    res.json({ deleted })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+}

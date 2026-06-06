@@ -149,11 +149,12 @@ export async function updateLead(id: string, tenantId: string, data: {
   return result.rows[0] ? mapLead(result.rows[0]) : null;
 }
 
-export async function softDeleteLead(id: string, tenantId: string) {
-  await query(
-    'UPDATE leads SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1 AND tenant_id = $2',
+export async function softDeleteLead(id: string, tenantId: string): Promise<boolean> {
+  const result = await query(
+    'UPDATE leads SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1 AND tenant_id = $2 AND is_deleted = FALSE',
     [id, tenantId]
   );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function restoreLead(id: string, tenantId: string) {
