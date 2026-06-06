@@ -18,6 +18,7 @@ import {
   notifyLeadRestored,
 } from '../services/notificationService';
 import { createActivity } from '../models/activityModel';
+import { countActiveLeads } from '../models/tenantModel';
 
 const MAX_STR      = 500;   // short fields: names, stages, emails
 const MAX_TEXT     = 5000;  // free-text fields: remarks, hoUpdate
@@ -115,6 +116,20 @@ export async function createLeadHandler(req: Request, res: Response) {
   const actualOwnerEmail = req.user!.role === 'sales' ? req.user!.email  : (ownerEmail || req.user!.email);
 
   try {
+    // Enforce lead count limit
+    if (req.tenant?.leadLimit != null) {
+      const currentCount = await countActiveLeads(req.user!.tenantId)
+      if (currentCount >= req.tenant.leadLimit) {
+        res.status(403).json({
+          error: 'LEAD_LIMIT_REACHED',
+          message: `Your plan allows up to ${req.tenant.leadLimit} leads. Please upgrade to add more.`,
+          limit: req.tenant.leadLimit,
+          current: currentCount,
+        })
+        return
+      }
+    }
+
     const lead = await createLead({
       companyName, solution,
       contacts:         contacts || [],
