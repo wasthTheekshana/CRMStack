@@ -9,6 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { ForgotPasswordPage }  from '@/pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage }   from '@/pages/auth/ResetPasswordPage'
+import { TrialExpiredPage }    from '@/pages/auth/TrialExpiredPage'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { SalesDashboard } from '@/pages/sales/SalesDashboard'
 import { RepComparison } from '@/pages/admin/RepComparison'
@@ -39,12 +40,16 @@ function RoleBasedDashboard() {
 }
 
 function App() {
-  const { initialize } = useAuthStore()
+  const { initialize, trialExpired } = useAuthStore()
 
   useEffect(() => {
     const unsubscribe = initialize()
     return () => unsubscribe()
   }, [initialize])
+
+  if (trialExpired) {
+    return <TrialExpiredPage />
+  }
 
   return (
     <>
