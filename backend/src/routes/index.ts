@@ -13,6 +13,7 @@ import superAdminRoutes    from './superAdmin';
 import notificationRoutes  from './notifications';
 import importRoutes        from './import';
 import publicBrandingRoutes from './publicBranding';
+import savedViewRoutes     from './savedViews';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/tenants',       tenantRoutes);
 router.use('/tenant/config', tenantConfigRoutes);
 router.use('/super-admin',   superAdminRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/saved-views',   savedViewRoutes);
 
 export default router;
