@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,7 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload, Clock, Trash2, Tags } from 'lucide-react'
+import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload, Clock, Trash2, Tags, Bookmark, BookmarkCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -44,6 +44,7 @@ import { useSalesStages, useStageColor, useCustomFields } from '@/store/tenantSt
 import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
 import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
 import { getLeadAgeDays, getLeadCreatedAt } from '@/lib/utils/leadAge'
+import { getSavedViews, createSavedView, deleteSavedView, type SavedView } from '@/services/savedViewService'
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -59,6 +60,11 @@ export function LeadsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [bulkActionKey, setBulkActionKey] = useState(0)
+  const [savedViews,        setSavedViews]        = useState<SavedView[]>([])
+  const [activeViewId,      setActiveViewId]       = useState<string | null>(null)
+  const [savingView,        setSavingView]         = useState(false)
+  const [saveViewName,      setSaveViewName]       = useState('')
+  const [showSaveViewInput, setShowSaveViewInput]  = useState(false)
 
   const { leads, isLoading, createLead, updateLead, deleteLead, reassignLead, bulkUpdate, bulkDelete, refetch } = useLeads()
   const isAdmin = useIsAdmin()
@@ -66,6 +72,22 @@ export function LeadsPage() {
   const getStageColor = useStageColor()
   const cfConfigs = useCustomFields()
   const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
+
+  // Load saved views on mount
+  useEffect(() => {
+    void getSavedViews()
+      .then(setSavedViews)
+      .catch(() => {/* silently ignore */})
+  }, [])
+
+  // Current filter snapshot for saving views
+  const currentFilters = useMemo(() => ({
+    searchTerm,
+    stageFilter,
+    solutionFilter,
+    ageFilter,
+    expiryFilter,
+  }), [searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -122,6 +144,45 @@ export function LeadsPage() {
   const hasActiveFilters =
     stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== '' ||
     ageFilter !== 'all' || expiryFilter !== 'all'
+
+  const handleSaveView = async () => {
+    if (!saveViewName.trim()) return
+    setSavingView(true)
+    try {
+      const view = await createSavedView(saveViewName.trim(), currentFilters)
+      setSavedViews(prev => [...prev, view])
+      setActiveViewId(view.id)
+      setSaveViewName('')
+      setShowSaveViewInput(false)
+      toast.success(`View "${view.name}" saved`)
+    } catch {
+      toast.error('Failed to save view')
+    } finally {
+      setSavingView(false)
+    }
+  }
+
+  const handleLoadView = (view: SavedView) => {
+    const f = view.filters
+    setSearchTerm(typeof f.searchTerm === 'string' ? f.searchTerm : '')
+    setStageFilter(typeof f.stageFilter === 'string' ? f.stageFilter : 'all')
+    setSolutionFilter(typeof f.solutionFilter === 'string' ? f.solutionFilter : 'all')
+    setAgeFilter(typeof f.ageFilter === 'string' ? f.ageFilter : 'all')
+    setExpiryFilter(typeof f.expiryFilter === 'string' ? f.expiryFilter : 'all')
+    setActiveViewId(view.id)
+  }
+
+  const handleDeleteView = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await deleteSavedView(id)
+      setSavedViews(prev => prev.filter(v => v.id !== id))
+      if (activeViewId === id) setActiveViewId(null)
+      toast.success('View deleted')
+    } catch {
+      toast.error('Failed to delete view')
+    }
+  }
 
   const toggleSelect = (id: string) =>
     setSelectedIds(prev => {
@@ -413,6 +474,66 @@ export function LeadsPage() {
           <Button size="sm" variant="ghost" onClick={clearSelection} className="h-8 text-xs">
             Clear
           </Button>
+        </div>
+      )}
+
+      {/* Saved views row */}
+      {(savedViews.length > 0 || hasActiveFilters) && (
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          {savedViews.map(view => (
+            <div
+              key={view.id}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border cursor-pointer transition-colors
+                ${activeViewId === view.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted hover:bg-muted/80 border-border'}`}
+              onClick={() => handleLoadView(view)}
+            >
+              <BookmarkCheck className="h-3 w-3" />
+              {view.name}
+              <button
+                className="ml-1 opacity-60 hover:opacity-100"
+                onClick={e => handleDeleteView(view.id, e)}
+                type="button"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {/* Save current filters button */}
+          {hasActiveFilters && !showSaveViewInput && (
+            <button
+              type="button"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+              onClick={() => setShowSaveViewInput(true)}
+            >
+              <Bookmark className="h-3 w-3" />
+              Save view
+            </button>
+          )}
+
+          {showSaveViewInput && (
+            <div className="flex items-center gap-1.5">
+              <input
+                className="h-7 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="View name…"
+                value={saveViewName}
+                onChange={e => setSaveViewName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void handleSaveView()
+                  if (e.key === 'Escape') { setShowSaveViewInput(false); setSaveViewName('') }
+                }}
+                autoFocus
+              />
+              <Button size="sm" className="h-7 text-xs" onClick={handleSaveView} disabled={savingView || !saveViewName.trim()}>
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setShowSaveViewInput(false); setSaveViewName('') }}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
