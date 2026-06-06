@@ -25,7 +25,8 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { LeadFormData, SalesStage, Contact } from '@/types'
-import { useSalesStages, useSolutions, useDefaultProbability } from '@/store/tenantStore'
+import { useSalesStages, useSolutions, useDefaultProbability, useCustomFields, useVisibleFields } from '@/store/tenantStore'
+import type { CustomFieldConfig } from '@/store/tenantStore'
 import { cn } from '@/lib/utils/cn'
 
 const leadSchema = z.object({
@@ -55,6 +56,9 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
   const salesStages    = useSalesStages()
   const solutions      = useSolutions()
   const getDefaultProb = useDefaultProbability()
+  const customFields   = useCustomFields()
+  const visibleFields  = useVisibleFields()
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
 
   const [isLoading, setIsLoading] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([
@@ -128,15 +132,25 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
     // Filter out empty contacts
     const validContacts = contacts.filter(c => c.name.trim() !== '')
 
+    // Validate required custom fields
+    for (const cf of customFields) {
+      if (cf.required && !customFieldValues[cf.id]?.trim()) {
+        toast.error(`"${cf.name}" is required`)
+        return
+      }
+    }
+
     setIsLoading(true)
     try {
       await onSave({
         ...data,
         contacts: validContacts,
         salesStage: data.salesStage as SalesStage,
+        customFields: customFieldValues,
       })
       toast.success('Lead created successfully')
       reset()
+      setCustomFieldValues({})
       setContacts([{ id: generateContactId(), name: '', phone: '', email: '', designation: '', isPrimary: true }])
       onClose()
     } catch (error) {
@@ -150,6 +164,7 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
   const handleClose = () => {
     reset()
     setContacts([{ id: generateContactId(), name: '', phone: '', email: '', designation: '', isPrimary: true }])
+    setCustomFieldValues({})
     setContactError(null)
     onClose()
   }
@@ -347,65 +362,152 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
               />
             </div>
 
-            <div className="space-y-2 col-span-2">
-              <div className="flex items-center justify-between">
-                <Label>Probability</Label>
-                <span className="text-sm font-medium">{probability}%</span>
+            {visibleFields['probability'] !== false && (
+              <div className="space-y-2 col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label>Probability</Label>
+                  <span className="text-sm font-medium">{probability}%</span>
+                </div>
+                <Slider
+                  value={[probability || 0]}
+                  onValueChange={([value]) => setValue('probability', value)}
+                  max={100}
+                  step={5}
+                  disabled={isLoading}
+                />
               </div>
-              <Slider
-                value={[probability || 0]}
-                onValueChange={([value]) => setValue('probability', value)}
-                max={100}
-                step={5}
-                disabled={isLoading}
-              />
-            </div>
+            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="imageCount">Image Count</Label>
-              <Input
-                id="imageCount"
-                type="number"
-                {...register('imageCount')}
-                disabled={isLoading}
-                placeholder="0"
-              />
-            </div>
+            {visibleFields['imageCount'] !== false && (
+              <div className="space-y-2">
+                <Label htmlFor="imageCount">Image Count</Label>
+                <Input
+                  id="imageCount"
+                  type="number"
+                  {...register('imageCount')}
+                  disabled={isLoading}
+                  placeholder="0"
+                />
+              </div>
+            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="boxCount">Box Count</Label>
-              <Input
-                id="boxCount"
-                type="number"
-                {...register('boxCount')}
-                disabled={isLoading}
-                placeholder="0"
-              />
-            </div>
+            {visibleFields['boxCount'] !== false && (
+              <div className="space-y-2">
+                <Label htmlFor="boxCount">Box Count</Label>
+                <Input
+                  id="boxCount"
+                  type="number"
+                  {...register('boxCount')}
+                  disabled={isLoading}
+                  placeholder="0"
+                />
+              </div>
+            )}
 
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="remarks">Remarks</Label>
-              <Textarea
-                id="remarks"
-                {...register('remarks')}
-                disabled={isLoading}
-                rows={3}
-                maxLength={5000}
-                placeholder="Enter any additional notes..."
-              />
-            </div>
+            {visibleFields['remarks'] !== false && (
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="remarks">Remarks</Label>
+                <Textarea
+                  id="remarks"
+                  {...register('remarks')}
+                  disabled={isLoading}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Enter any additional notes..."
+                />
+              </div>
+            )}
 
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="hoUpdate">H/O Update</Label>
-              <Input
-                id="hoUpdate"
-                {...register('hoUpdate')}
-                disabled={isLoading}
-                maxLength={5000}
-                placeholder="Head Office update status"
-              />
-            </div>
+            {visibleFields['hoUpdate'] !== false && (
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="hoUpdate">H/O Update</Label>
+                <Input
+                  id="hoUpdate"
+                  {...register('hoUpdate')}
+                  disabled={isLoading}
+                  maxLength={5000}
+                  placeholder="Head Office update status"
+                />
+              </div>
+            )}
           </div>
+
+          {/* Custom fields configured in Workspace Settings → Lead Fields */}
+          {customFields.length > 0 && (
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Custom Fields</Label>
+              <div className="grid grid-cols-2 gap-4">
+                {customFields.map((cf: CustomFieldConfig) => (
+                  <div key={cf.id} className={cn('space-y-2', cf.type === 'text' && 'col-span-2')}>
+                    <Label htmlFor={`cf_${cf.id}`}>
+                      {cf.name}
+                      {cf.required && <span className="text-destructive ml-1">*</span>}
+                    </Label>
+
+                    {cf.type === 'text' && (
+                      <Input
+                        id={`cf_${cf.id}`}
+                        value={customFieldValues[cf.id] ?? ''}
+                        onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                        disabled={isLoading}
+                      />
+                    )}
+
+                    {cf.type === 'number' && (
+                      <Input
+                        id={`cf_${cf.id}`}
+                        type="number"
+                        value={customFieldValues[cf.id] ?? ''}
+                        onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                        disabled={isLoading}
+                      />
+                    )}
+
+                    {cf.type === 'date' && (
+                      <Input
+                        id={`cf_${cf.id}`}
+                        type="date"
+                        value={customFieldValues[cf.id] ?? ''}
+                        onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                        disabled={isLoading}
+                      />
+                    )}
+
+                    {cf.type === 'select' && (
+                      <Select
+                        value={customFieldValues[cf.id] ?? ''}
+                        onValueChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                          {cf.options.map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    {cf.type === 'checkbox' && (
+                      <div className="flex items-center gap-2 h-10">
+                        <input
+                          id={`cf_${cf.id}`}
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-input accent-primary"
+                          checked={customFieldValues[cf.id] === 'true'}
+                          onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: String(e.target.checked) }))}
+                          disabled={isLoading}
+                        />
+                        <label htmlFor={`cf_${cf.id}`} className="text-sm text-muted-foreground">
+                          {cf.name}
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
             <Button
