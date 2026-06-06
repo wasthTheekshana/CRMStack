@@ -5,6 +5,12 @@ import { Lead, SalesStage } from '@/models'
 import { formatCurrency, timestampToDate } from './formatters'
 import { format } from 'date-fns'
 
+function hexToRgb(hex: string): [number, number, number] {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!result) return [59, 130, 246]
+  return [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+}
+
 // Export leads to CSV
 export function exportToCSV(leads: Lead[], filename: string = 'leads-export'): void {
   const data = leads.map((lead) => {
@@ -51,14 +57,15 @@ export function exportToPDF(
     dateRange?: string
     stage?: SalesStage
     solution?: string
-  }
+  },
+  branding?: { companyName?: string | null; primaryColor?: string | null }
 ): void {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
 
   doc.setFontSize(20)
   doc.setTextColor(33, 37, 41)
-  doc.text('CRM STACK', 14, 20)
+  doc.text(branding?.companyName ?? 'CRM STACK', 14, 20)
 
   doc.setFontSize(14)
   doc.text(title, 14, 30)
@@ -105,7 +112,7 @@ export function exportToPDF(
     head: [['Company', 'Solution', 'Contact', 'Stage', 'Revenue', 'Prob', 'Weighted']],
     body: tableData,
     theme: 'striped',
-    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    headStyles: { fillColor: hexToRgb(branding?.primaryColor ?? '#3b82f6'), textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
     bodyStyles: { fontSize: 8 },
     columnStyles: {
       0: { cellWidth: 35 }, 1: { cellWidth: 30 }, 2: { cellWidth: 25 }, 3: { cellWidth: 25 },
@@ -132,12 +139,13 @@ export function exportSummaryToPDF(
     stageBreakdown: { stage: string; count: number; revenue: number }[]
     solutionBreakdown: { solution: string; count: number; revenue: number }[]
   },
-  title: string = 'Sales Summary Report'
+  title: string = 'Sales Summary Report',
+  branding?: { companyName?: string | null; primaryColor?: string | null }
 ): void {
   const doc = new jsPDF()
 
   doc.setFontSize(20)
-  doc.text('CRM STACK', 14, 20)
+  doc.text(branding?.companyName ?? 'CRM STACK', 14, 20)
   doc.setFontSize(14)
   doc.text(title, 14, 30)
   doc.setFontSize(10)
@@ -160,7 +168,7 @@ export function exportSummaryToPDF(
     head: [['Stage', 'Count', 'Revenue']],
     body: data.stageBreakdown.map((s) => [s.stage, s.count.toString(), formatCurrency(s.revenue)]),
     theme: 'striped',
-    headStyles: { fillColor: [59, 130, 246] },
+    headStyles: { fillColor: hexToRgb(branding?.primaryColor ?? '#3b82f6') },
     margin: { left: 14 },
   })
 
