@@ -12,9 +12,11 @@ import tenantConfigRoutes  from './tenantConfig';
 import superAdminRoutes    from './superAdmin';
 import notificationRoutes  from './notifications';
 import importRoutes        from './import';
+import publicBrandingRoutes from './publicBranding';
 
 const router = Router();
 
+router.use('/public/branding', publicBrandingRoutes);
 router.use('/auth',          authRoutes);
 router.use('/users',         userRoutes);
 router.use('/leads/import',  importRoutes);
