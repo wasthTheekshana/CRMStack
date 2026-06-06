@@ -1,0 +1,80 @@
+<h2>Where should the Activity Log & Tasks live?</h2>
+<p class="subtitle">The lead detail (DealModal) currently has one scrollable form. Where do we add the new panels?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;">
+        <div style="display:flex;gap:8px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:10px;">
+          <span style="background:#4f46e5;color:#fff;padding:3px 10px;border-radius:4px;font-weight:600;">Details</span>
+          <span style="color:#64748b;padding:3px 10px;">Activity Log</span>
+          <span style="color:#64748b;padding:3px 10px;">Tasks</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="background:#f1f5f9;border-radius:4px;height:14px;width:90%;"></div>
+          <div style="background:#f1f5f9;border-radius:4px;height:14px;width:75%;"></div>
+          <div style="background:#f1f5f9;border-radius:4px;height:14px;width:85%;"></div>
+          <div style="background:#f1f5f9;border-radius:4px;height:14px;width:60%;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Tabs inside DealModal</h3>
+      <p>Add two new tabs: <strong>Activity Log</strong> and <strong>Tasks</strong>. User clicks between tabs. Same modal, more content.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;">
+        <div style="display:flex;gap:12px;height:120px;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <div style="font-weight:600;color:#374151;margin-bottom:4px;">Lead Details</div>
+            <div style="background:#f1f5f9;border-radius:4px;height:12px;width:90%;"></div>
+            <div style="background:#f1f5f9;border-radius:4px;height:12px;width:75%;"></div>
+            <div style="background:#f1f5f9;border-radius:4px;height:12px;width:80%;"></div>
+          </div>
+          <div style="width:1px;background:#e2e8f0;"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <div style="font-weight:600;color:#374151;margin-bottom:4px;">Activity & Tasks</div>
+            <div style="background:#dbeafe;border-radius:4px;height:24px;width:100%;display:flex;align-items:center;padding:0 6px;color:#1d4ed8;font-size:11px;">📞 Called — 2h ago</div>
+            <div style="background:#dcfce7;border-radius:4px;height:24px;width:100%;display:flex;align-items:center;padding:0 6px;color:#166534;font-size:11px;">✅ Task: Send proposal</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Two-column modal</h3>
+      <p>Left side = lead form. Right side = activity + tasks panel. Everything visible at once, wider modal.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;position:relative;overflow:hidden;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="background:#f1f5f9;border-radius:4px;height:14px;width:90%;"></div>
+          <div style="background:#f1f5f9;border-radius:4px;height:14px;width:75%;"></div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:#374151;font-size:11px;">📋 3 activities · ⏰ 2 tasks due</span>
+          <span style="background:#4f46e5;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;">View →</span>
+        </div>
+        <div style="position:absolute;right:-2px;top:0;bottom:0;width:55%;background:#fff;border-left:2px solid #4f46e5;border-radius:0 8px 8px 0;padding:8px;box-shadow:-4px 0 12px rgba(0,0,0,0.1);">
+          <div style="font-weight:600;margin-bottom:6px;font-size:11px;">Activity & Tasks</div>
+          <div style="background:#dbeafe;border-radius:3px;height:16px;margin-bottom:4px;"></div>
+          <div style="background:#dcfce7;border-radius:3px;height:16px;margin-bottom:4px;"></div>
+          <div style="background:#fef3c7;border-radius:3px;height:16px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Side drawer from lead</h3>
+      <p>A summary bar on the lead card shows activity count. Clicking opens a side drawer with the full log and tasks — separate from the edit form.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Click an option, then let me know your choice in the terminal.</p>
