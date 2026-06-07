@@ -33,6 +33,7 @@ export interface Contact {
 
 export interface Lead {
   id: string
+  companyId?: string | null
   companyName: string
   solution: string
   contacts: Contact[]
@@ -153,6 +154,32 @@ export interface DashboardSettings {
     salesTargets: boolean
     quarterlyTargets: boolean
   }
+}
+
+export interface Company {
+  id:        string
+  tenantId:  string
+  name:      string
+  website:   string | null
+  phone:     string | null
+  address:   string | null
+  notes:     string | null
+  leadCount?: number
+  contacts?: ContactRecord[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContactRecord {
+  id:          string
+  tenantId:    string
+  companyId:   string | null
+  name:        string
+  phone:       string | null
+  email:       string | null
+  designation: string | null
+  createdAt:   string
+  updatedAt:   string
 }
 
 // Revenue Forecast types

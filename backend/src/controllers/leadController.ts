@@ -18,6 +18,10 @@ import {
   notifyLeadRestored,
 } from '../services/notificationService';
 import { createActivity } from '../models/activityModel';
+import { countActiveLeads } from '../models/tenantModel';
+import { findConfigByTenantId } from '../models/tenantConfigModel';
+import { findCompanyById } from '../models/companyModel';
+import { pool } from '../config/db';
 
 const MAX_STR      = 500;   // short fields: names, stages, emails
 const MAX_TEXT     = 5000;  // free-text fields: remarks, hoUpdate
@@ -59,6 +63,26 @@ function validateLeadFields(body: Record<string, unknown>): string | null {
   return null; // valid
 }
 
+async function validateRequiredCustomFields(
+  tenantId: string,
+  customFields: Record<string, unknown>
+): Promise<string | null> {
+  const config = await findConfigByTenantId(tenantId)
+  if (!config) return null
+  for (const field of config.customFields) {
+    if (!field.required) continue
+    const value = customFields[field.id]
+    const isEmpty =
+      value == null ||
+      (typeof value === 'string' && value.trim() === '') ||
+      (field.type === 'checkbox' && value === false)
+    if (isEmpty) {
+      return `"${field.name}" is required`
+    }
+  }
+  return null
+}
+
 export async function listLeads(req: Request, res: Response) {
   try {
     const leads = await findAllLeads(req.user!.userId, req.user!.tenantId, req.user!.role === 'admin');
@@ -95,7 +119,7 @@ export async function getLead(req: Request, res: Response) {
 
 export async function createLeadHandler(req: Request, res: Response) {
   const {
-    companyName, solution, contacts, salesStage,
+    companyName, companyId, solution, contacts, salesStage,
     imageCount, boxCount, estimatedRevenue, probability,
     remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
   } = req.body;
@@ -114,23 +138,99 @@ export async function createLeadHandler(req: Request, res: Response) {
   const actualOwnerId    = req.user!.role === 'sales' ? req.user!.userId : (ownerId || req.user!.userId);
   const actualOwnerEmail = req.user!.role === 'sales' ? req.user!.email  : (ownerEmail || req.user!.email);
 
+  if (companyId) {
+    try {
+      const company = await findCompanyById(companyId, req.user!.tenantId)
+      if (!company) {
+        res.status(400).json({ error: 'Invalid companyId' })
+        return
+      }
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ error: 'Server error' })
+      return
+    }
+  }
+
   try {
-    const lead = await createLead({
-      companyName, solution,
-      contacts:         contacts || [],
-      salesStage,
-      imageCount:       imageCount || 0,
-      boxCount:         boxCount || 0,
-      estimatedRevenue: estimatedRevenue || 0,
-      probability:      probability || 0,
-      remarks:          remarks || '',
-      hoUpdate:         hoUpdate || '',
-      position:         position || null,
-      ownerId:          actualOwnerId,
-      ownerEmail:       actualOwnerEmail,
-      tenantId:         req.user!.tenantId,
-      customFields:     customFields || {},
-    });
+    const cfError = await validateRequiredCustomFields(
+      req.user!.tenantId,
+      (customFields as Record<string, unknown>) ?? {}
+    )
+    if (cfError) {
+      res.status(400).json({ error: cfError })
+      return
+    }
+
+    let lead
+    if (req.tenant?.leadLimit != null) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        // Advisory lock serializes concurrent lead creation per tenant
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [req.user!.tenantId])
+        const countResult = await client.query(
+          'SELECT COUNT(*) FROM leads WHERE tenant_id = $1 AND is_deleted = FALSE',
+          [req.user!.tenantId]
+        )
+        const currentCount = parseInt(countResult.rows[0].count, 10)
+        if (currentCount >= req.tenant.leadLimit) {
+          await client.query('ROLLBACK')
+          res.status(403).json({
+            error: 'LEAD_LIMIT_REACHED',
+            message: `Your plan allows up to ${req.tenant.leadLimit} leads. Please upgrade to add more.`,
+            limit: req.tenant.leadLimit,
+            current: currentCount,
+          })
+          return
+        }
+        const insertResult = await client.query(
+          `INSERT INTO leads
+             (company_name, company_id, solution, contacts, sales_stage,
+              image_count, box_count, estimated_revenue, probability, remarks,
+              ho_update, position, owner_id, owner_email, tenant_id, custom_fields)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+           RETURNING *`,
+          [
+            companyName, companyId ?? null, solution,
+            JSON.stringify(contacts || []),
+            salesStage, imageCount || 0, boxCount || 0,
+            estimatedRevenue || 0, probability || 0,
+            remarks || '', hoUpdate || '', position || null,
+            actualOwnerId, actualOwnerEmail,
+            req.user!.tenantId, JSON.stringify(customFields ?? {}),
+          ]
+        )
+        await client.query('COMMIT')
+        const { mapLead } = await import('../models/leadModel')
+        lead = mapLead(insertResult.rows[0])
+      } catch (err) {
+        await client.query('ROLLBACK')
+        throw err
+      } finally {
+        client.release()
+      }
+    } else {
+      lead = await createLead({
+        companyName,
+        companyId:        companyId ?? null,
+        solution,
+        contacts:         contacts || [],
+        salesStage,
+        imageCount:       imageCount || 0,
+        boxCount:         boxCount || 0,
+        estimatedRevenue: estimatedRevenue || 0,
+        probability:      probability || 0,
+        remarks:          remarks || '',
+        hoUpdate:         hoUpdate || '',
+        position:         position || null,
+        ownerId:          actualOwnerId,
+        ownerEmail:       actualOwnerEmail,
+        tenantId:         req.user!.tenantId,
+        customFields:     customFields || {},
+      })
+    }
+
     void notifyLeadAssigned({
       tenantId:    req.user!.tenantId,
       assigneeId:  lead.ownerId as string,
@@ -146,7 +246,7 @@ export async function createLeadHandler(req: Request, res: Response) {
 
 export async function updateLeadHandler(req: Request, res: Response) {
   const {
-    companyName, solution, contacts, salesStage,
+    companyName, companyId, solution, contacts, salesStage,
     imageCount, boxCount, estimatedRevenue, probability,
     remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
   } = req.body;
@@ -165,8 +265,26 @@ export async function updateLeadHandler(req: Request, res: Response) {
       return;
     }
 
+    const merged = {
+      ...(existingLead.customFields as Record<string, unknown> ?? {}),
+      ...(customFields != null ? (customFields as Record<string, unknown>) : {}),
+    }
+    const cfError = await validateRequiredCustomFields(req.user!.tenantId, merged)
+    if (cfError) {
+      res.status(400).json({ error: cfError })
+      return
+    }
+
+    if (companyId != null) {
+      const company = await findCompanyById(companyId, req.user!.tenantId)
+      if (!company) {
+        res.status(400).json({ error: 'Invalid companyId' })
+        return
+      }
+    }
+
     const lead = await updateLead(req.params.id, req.user!.tenantId, {
-      companyName, solution, contacts, salesStage,
+      companyName, companyId, solution, contacts, salesStage,
       imageCount, boxCount, estimatedRevenue, probability,
       remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
     });
@@ -303,5 +421,87 @@ export async function deleteAllLeadsHandler(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function bulkUpdateLeads(req: Request, res: Response) {
+  const { ids, update } = req.body as {
+    ids:    string[]
+    update: { salesStage?: string; ownerId?: string; ownerEmail?: string }
+  }
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' })
+    return
+  }
+
+  const MAX_BULK = 500
+  if (ids.length > MAX_BULK) {
+    res.status(400).json({ error: `Cannot bulk-process more than ${MAX_BULK} leads at once` })
+    return
+  }
+
+  const ALLOWED_FIELDS = ['salesStage', 'ownerId', 'ownerEmail']
+  const keys = Object.keys(update ?? {})
+  if (keys.length === 0 || keys.some(k => !ALLOWED_FIELDS.includes(k))) {
+    res.status(400).json({ error: 'update must contain only: salesStage, ownerId, ownerEmail' })
+    return
+  }
+
+  if ((update.ownerId != null) !== (update.ownerEmail != null)) {
+    res.status(400).json({ error: 'ownerId and ownerEmail must be provided together' })
+    return
+  }
+
+  try {
+    const { tenantId, userId, role } = req.user!
+
+    if (update.ownerId != null) {
+      const newOwner = await findUserByIdInTenant(update.ownerId, tenantId)
+      if (!newOwner || !newOwner.isActive) {
+        res.status(400).json({ error: 'Invalid ownerId: user not found or inactive in this tenant' })
+        return
+      }
+    }
+
+    const results: { id: string; ok: boolean }[] = []
+    for (const id of ids) {
+      const ownerId = await getLeadOwnerId(id, tenantId)
+      if (!ownerId) { results.push({ id, ok: false }); continue }
+      if (role !== 'admin' && ownerId !== userId) { results.push({ id, ok: false }); continue }
+      await updateLead(id, tenantId, update)
+      results.push({ id, ok: true })
+    }
+    res.json({ results, updated: results.filter(r => r.ok).length })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+}
+
+export async function bulkDeleteLeads(req: Request, res: Response) {
+  const { ids } = req.body as { ids: string[] }
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids array required' })
+    return
+  }
+
+  const MAX_BULK = 500
+  if (ids.length > MAX_BULK) {
+    res.status(400).json({ error: `Cannot bulk-process more than ${MAX_BULK} leads at once` })
+    return
+  }
+
+  try {
+    const { tenantId } = req.user!
+    let deleted = 0
+    for (const id of ids) {
+      const ok = await softDeleteLead(id, tenantId)
+      if (ok) deleted++
+    }
+    res.json({ deleted })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
   }
 }

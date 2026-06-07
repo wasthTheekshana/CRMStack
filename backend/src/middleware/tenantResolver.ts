@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { findTenantBySubdomain, findTenantById, Tenant } from '../models/tenantModel';
+import { findTenantBySubdomain, findTenantById, updateTenant, Tenant } from '../models/tenantModel';
 
 declare global {
   namespace Express {
@@ -30,6 +30,15 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
         return;
       }
       req.tenant = tenant;
+      // Check trial expiry
+      if (tenant.status === 'trial' && tenant.trialEndsAt && tenant.trialEndsAt < new Date()) {
+        await updateTenant(tenant.id, { status: 'suspended' });
+        res.status(402).json({
+          error: 'TRIAL_EXPIRED',
+          message: 'Your trial has ended. Please contact support to upgrade your plan.',
+        });
+        return;
+      }
       return next();
     }
 
@@ -43,6 +52,15 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
           return;
         }
         req.tenant = tenant;
+        // Check trial expiry
+        if (tenant.status === 'trial' && tenant.trialEndsAt && tenant.trialEndsAt < new Date()) {
+          await updateTenant(tenant.id, { status: 'suspended' });
+          res.status(402).json({
+            error: 'TRIAL_EXPIRED',
+            message: 'Your trial has ended. Please contact support to upgrade your plan.',
+          });
+          return;
+        }
         return next();
       }
     }
@@ -52,6 +70,15 @@ export async function resolveTenant(req: Request, res: Response, next: NextFunct
       const tenant = await findTenantBySubdomain('dok');
       if (tenant) {
         req.tenant = tenant;
+        // Check trial expiry
+        if (tenant.status === 'trial' && tenant.trialEndsAt && tenant.trialEndsAt < new Date()) {
+          await updateTenant(tenant.id, { status: 'suspended' });
+          res.status(402).json({
+            error: 'TRIAL_EXPIRED',
+            message: 'Your trial has ended. Please contact support to upgrade your plan.',
+          });
+          return;
+        }
         return next();
       }
     }

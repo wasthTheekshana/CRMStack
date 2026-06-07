@@ -8,6 +8,7 @@ export interface Tenant {
   plan:         'starter' | 'business' | 'enterprise';
   status:       'active' | 'trial' | 'suspended' | 'cancelled';
   userLimit:    number;
+  leadLimit:    number | null;   // null = unlimited (enterprise)
   ownerEmail:   string;
   createdAt:    Date;
   suspendedAt:  Date | null;
@@ -22,6 +23,7 @@ export const mapTenant = (row: Record<string, unknown>): Tenant => ({
   plan:        row.plan as Tenant['plan'],
   status:      row.status as Tenant['status'],
   userLimit:   row.user_limit as number,
+  leadLimit:   row.lead_limit as number | null,
   ownerEmail:  row.owner_email as string,
   createdAt:   row.created_at as Date,
   suspendedAt: row.suspended_at as Date | null,
@@ -151,5 +153,13 @@ export async function countUsersInTenant(tenantId: string): Promise<number> {
     'SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND is_active = TRUE',
     [tenantId]
   );
-  return parseInt(result.rows[0].count);
+  return parseInt(result.rows[0].count, 10);
+}
+
+export async function countActiveLeads(tenantId: string): Promise<number> {
+  const result = await query(
+    'SELECT COUNT(*) FROM leads WHERE tenant_id = $1 AND is_deleted = FALSE',
+    [tenantId]
+  );
+  return parseInt(result.rows[0].count, 10);
 }

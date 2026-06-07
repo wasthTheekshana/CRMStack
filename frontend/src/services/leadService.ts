@@ -39,6 +39,21 @@ export const getLeadCountByUser = async (userId: string): Promise<number> => {
   return leads.filter(l => l.ownerId === userId).length;
 };
 
+export const bulkUpdateLeads = (
+  ids: string[],
+  update: { salesStage?: string; ownerId?: string; ownerEmail?: string }
+) =>
+  apiFetch<{ results: { id: string; ok: boolean }[]; updated: number }>('/api/leads/bulk', {
+    method: 'PATCH',
+    body: JSON.stringify({ ids, update }),
+  });
+
+export const bulkDeleteLeads = (ids: string[]) =>
+  apiFetch<{ deleted: number }>('/api/leads/bulk', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  });
+
 export const reassignLeads = async (
   fromUserId: string,
   toUserId: string,

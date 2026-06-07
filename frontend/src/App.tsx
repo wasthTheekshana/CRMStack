@@ -9,6 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { ForgotPasswordPage }  from '@/pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage }   from '@/pages/auth/ResetPasswordPage'
+import { TrialExpiredPage }    from '@/pages/auth/TrialExpiredPage'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { SalesDashboard } from '@/pages/sales/SalesDashboard'
 import { RepComparison } from '@/pages/admin/RepComparison'
@@ -22,6 +23,8 @@ import { ReportsPage } from '@/pages/shared/ReportsPage'
 import { ProfilePage } from '@/pages/shared/ProfilePage'
 import { SalesTargetsPage } from '@/pages/shared/SalesTargetsPage'
 import { DeletedLeadsPage } from '@/pages/shared/DeletedLeadsPage'
+import { CompaniesPage } from '@/pages/shared/CompaniesPage'
+import { ContactsPage } from '@/pages/shared/ContactsPage'
 import { SALogin } from '@/pages/superadmin/SALogin'
 import { SALayout } from '@/pages/superadmin/SALayout'
 import { SADashboard } from '@/pages/superadmin/SADashboard'
@@ -39,12 +42,16 @@ function RoleBasedDashboard() {
 }
 
 function App() {
-  const { initialize } = useAuthStore()
+  const { initialize, trialExpired } = useAuthStore()
 
   useEffect(() => {
     const unsubscribe = initialize()
     return () => unsubscribe()
   }, [initialize])
+
+  if (trialExpired) {
+    return <TrialExpiredPage />
+  }
 
   return (
     <>
@@ -80,6 +87,8 @@ function App() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="targets" element={<SalesTargetsPage />} />
         <Route path="deleted-leads" element={<DeletedLeadsPage />} />
+        <Route path="companies" element={<CompaniesPage />} />
+        <Route path="contacts" element={<ContactsPage />} />
 
         {/* Admin-only routes */}
         <Route

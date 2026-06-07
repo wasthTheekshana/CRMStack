@@ -11,6 +11,8 @@ import {
   restoreLeadHandler,
   reassignLeadHandler,
   deleteAllLeadsHandler,
+  bulkUpdateLeads,
+  bulkDeleteLeads,
 } from '../controllers/leadController';
 import {
   getBulkLeadExpiryHandler,
@@ -28,6 +30,8 @@ router.get('/:id/expiry',    requireAuth, validateUUIDParam('id'), getLeadExpiry
 router.put('/:id/expiry',    requireAuth, validateUUIDParam('id'), setLeadExpiryHandler);
 router.delete('/:id/expiry', requireAuth, validateUUIDParam('id'), deleteLeadExpiryHandler);
 router.delete('/all',        requireAuth, requireAdmin,            deleteAllLeadsHandler);
+router.patch('/bulk',        requireAuth,               bulkUpdateLeads);
+router.delete('/bulk',       requireAuth, requireAdmin, bulkDeleteLeads);
 router.get('/:id',           requireAuth, validateUUIDParam('id'), getLead);
 router.post('/',             requireAuth,               createLeadHandler);
 router.put('/:id',           requireAuth, validateUUIDParam('id'), updateLeadHandler);

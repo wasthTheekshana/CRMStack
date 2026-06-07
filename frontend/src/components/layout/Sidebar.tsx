@@ -4,6 +4,7 @@ import {
   Kanban,
   BarChart3,
   Users,
+  Building2,
   FileText,
   GitCompare,
   UserCog,
@@ -92,6 +93,16 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
       to: '/leads',
       icon: <Users className="h-5 w-5 flex-shrink-0" />,
       label: 'Leads',
+    },
+    {
+      to: '/companies',
+      icon: <Building2 className="h-5 w-5 flex-shrink-0" />,
+      label: 'Companies',
+    },
+    {
+      to: '/contacts',
+      icon: <Users className="h-5 w-5 flex-shrink-0" />,
+      label: 'Contacts',
     },
     {
       to: '/reports',

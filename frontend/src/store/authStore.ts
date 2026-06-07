@@ -22,6 +22,7 @@ interface AuthState {
   isAuthenticated: boolean
   error:           string | null
   initialized:     boolean
+  trialExpired:    boolean
   login:           (username: string, password: string) => Promise<void>
   logout:          () => Promise<void>
   setUser:         (user: AuthUser | null) => void
@@ -30,6 +31,7 @@ interface AuthState {
   setError:        (error: string | null) => void
   clearError:      () => void
   initialize:      () => () => void
+  setTrialExpired: () => void
 }
 
 function toUserProfile(user: AuthUser): User {
@@ -53,12 +55,14 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       error:           null,
       initialized:     false,
+      trialExpired:    false,
 
-      setUser:        (user)    => set({ user, isAuthenticated: !!user }),
-      setUserProfile: (profile) => set({ userProfile: profile }),
-      setLoading:     (loading) => set({ isLoading: loading }),
-      setError:       (error)   => set({ error }),
-      clearError:     ()        => set({ error: null }),
+      setUser:         (user)    => set({ user, isAuthenticated: !!user }),
+      setUserProfile:  (profile) => set({ userProfile: profile }),
+      setLoading:      (loading) => set({ isLoading: loading }),
+      setError:        (error)   => set({ error }),
+      clearError:      ()        => set({ error: null }),
+      setTrialExpired: ()        => set({ trialExpired: true }),
 
       login: async (username, password) => {
         set({ isLoading: true, error: null })

@@ -3,6 +3,7 @@ import { query } from '../config/db';
 // ─── Row → Client mapper ──────────────────────────────────────────────────────
 export const mapLead = (row: Record<string, unknown>) => ({
   id:               row.id,
+  companyId:        (row.company_id as string) ?? null,
   companyName:      row.company_name,
   solution:         row.solution,
   contacts:         row.contacts,
@@ -26,37 +27,53 @@ export const mapLead = (row: Record<string, unknown>) => ({
 
 // ─── Query functions ──────────────────────────────────────────────────────────
 export async function findAllLeads(userId: string, tenantId: string, isAdmin: boolean) {
+  const base = `
+    SELECT l.*,
+           COALESCE(c.name, l.company_name) AS company_name
+      FROM leads l
+      LEFT JOIN companies c ON c.id = l.company_id AND c.tenant_id = l.tenant_id
+     WHERE l.is_deleted = FALSE AND l.tenant_id = $1`
+
   const result = isAdmin
-    ? await query(
-        'SELECT * FROM leads WHERE is_deleted = FALSE AND tenant_id = $1 ORDER BY updated_at DESC',
-        [tenantId]
-      )
-    : await query(
-        'SELECT * FROM leads WHERE is_deleted = FALSE AND tenant_id = $1 AND owner_id = $2 ORDER BY updated_at DESC',
-        [tenantId, userId]
-      );
-  return result.rows.map(mapLead);
+    ? await query(base + ' ORDER BY l.updated_at DESC', [tenantId])
+    : await query(base + ' AND l.owner_id = $2 ORDER BY l.updated_at DESC', [tenantId, userId])
+  return result.rows.map(mapLead)
 }
 
 export async function findDeletedLeads(userId: string, tenantId: string, isAdmin: boolean) {
+  const base = `
+    SELECT l.*,
+           COALESCE(c.name, l.company_name) AS company_name
+      FROM leads l
+      LEFT JOIN companies c ON c.id = l.company_id AND c.tenant_id = l.tenant_id
+     WHERE l.is_deleted = TRUE AND l.tenant_id = $1`
+
   const result = isAdmin
-    ? await query(
-        'SELECT * FROM leads WHERE is_deleted = TRUE AND tenant_id = $1 ORDER BY deleted_at DESC',
-        [tenantId]
-      )
-    : await query(
-        'SELECT * FROM leads WHERE is_deleted = TRUE AND tenant_id = $1 AND owner_id = $2 ORDER BY deleted_at DESC',
-        [tenantId, userId]
-      );
-  return result.rows.map(mapLead);
+    ? await query(base + ' ORDER BY l.deleted_at DESC', [tenantId])
+    : await query(base + ' AND l.owner_id = $2 ORDER BY l.deleted_at DESC', [tenantId, userId])
+  return result.rows.map(mapLead)
 }
 
 export async function findLeadById(id: string, tenantId: string) {
   const result = await query(
-    'SELECT * FROM leads WHERE id = $1 AND tenant_id = $2',
+    `SELECT l.*,
+            COALESCE(c.name, l.company_name) AS company_name
+       FROM leads l
+       LEFT JOIN companies c ON c.id = l.company_id AND c.tenant_id = l.tenant_id
+      WHERE l.id = $1 AND l.tenant_id = $2`,
     [id, tenantId]
-  );
-  return result.rows[0] ? mapLead(result.rows[0]) : null;
+  )
+  return result.rows[0] ? mapLead(result.rows[0]) : null
+}
+
+export async function ownsLeadForCompany(userId: string, companyId: string, tenantId: string): Promise<boolean> {
+  const result = await query(
+    `SELECT 1 FROM leads
+      WHERE owner_id = $1 AND company_id = $2 AND tenant_id = $3 AND is_deleted = FALSE
+      LIMIT 1`,
+    [userId, companyId, tenantId]
+  )
+  return result.rows.length > 0
 }
 
 export async function getLeadOwnerId(id: string, tenantId: string): Promise<string | null> {
@@ -69,6 +86,7 @@ export async function getLeadOwnerId(id: string, tenantId: string): Promise<stri
 
 export async function createLead(data: {
   companyName:      string;
+  companyId?:       string | null;
   solution:         string;
   contacts:         unknown[];
   salesStage:       string;
@@ -86,24 +104,36 @@ export async function createLead(data: {
 }) {
   const result = await query(
     `INSERT INTO leads
-       (company_name, solution, contacts, sales_stage, image_count, box_count,
-        estimated_revenue, probability, remarks, ho_update, position,
-        owner_id, owner_email, tenant_id, custom_fields)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       (company_name, company_id, solution, contacts, sales_stage,
+        image_count, box_count, estimated_revenue, probability, remarks,
+        ho_update, position, owner_id, owner_email, tenant_id, custom_fields)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      RETURNING *`,
     [
-      data.companyName, data.solution, JSON.stringify(data.contacts),
-      data.salesStage, data.imageCount, data.boxCount,
-      data.estimatedRevenue, data.probability, data.remarks, data.hoUpdate,
-      data.position, data.ownerId, data.ownerEmail,
-      data.tenantId, JSON.stringify(data.customFields ?? {}),
+      data.companyName,
+      data.companyId ?? null,
+      data.solution,
+      JSON.stringify(data.contacts),
+      data.salesStage,
+      data.imageCount,
+      data.boxCount,
+      data.estimatedRevenue,
+      data.probability,
+      data.remarks,
+      data.hoUpdate,
+      data.position,
+      data.ownerId,
+      data.ownerEmail,
+      data.tenantId,
+      JSON.stringify(data.customFields ?? {}),
     ]
-  );
-  return mapLead(result.rows[0]);
+  )
+  return mapLead(result.rows[0])
 }
 
 export async function updateLead(id: string, tenantId: string, data: {
   companyName?:      string;
+  companyId?:        string | null;
   solution?:         string;
   contacts?:         unknown[];
   salesStage?:       string;
@@ -121,39 +151,51 @@ export async function updateLead(id: string, tenantId: string, data: {
   const result = await query(
     `UPDATE leads SET
        company_name      = COALESCE($1,  company_name),
-       solution          = COALESCE($2,  solution),
-       contacts          = COALESCE($3,  contacts),
-       sales_stage       = COALESCE($4,  sales_stage),
-       image_count       = COALESCE($5,  image_count),
-       box_count         = COALESCE($6,  box_count),
-       estimated_revenue = COALESCE($7,  estimated_revenue),
-       probability       = COALESCE($8,  probability),
-       remarks           = COALESCE($9,  remarks),
-       ho_update         = COALESCE($10, ho_update),
-       position          = COALESCE($11, position),
-       owner_id          = COALESCE($12, owner_id),
-       owner_email       = COALESCE($13, owner_email),
-       custom_fields     = COALESCE($14, custom_fields)
-     WHERE id = $15 AND tenant_id = $16
+       company_id        = COALESCE($2,  company_id),
+       solution          = COALESCE($3,  solution),
+       contacts          = COALESCE($4,  contacts),
+       sales_stage       = COALESCE($5,  sales_stage),
+       image_count       = COALESCE($6,  image_count),
+       box_count         = COALESCE($7,  box_count),
+       estimated_revenue = COALESCE($8,  estimated_revenue),
+       probability       = COALESCE($9,  probability),
+       remarks           = COALESCE($10, remarks),
+       ho_update         = COALESCE($11, ho_update),
+       position          = COALESCE($12, position),
+       owner_id          = COALESCE($13, owner_id),
+       owner_email       = COALESCE($14, owner_email),
+       custom_fields     = COALESCE($15, custom_fields)
+     WHERE id = $16 AND tenant_id = $17
      RETURNING *`,
     [
-      data.companyName, data.solution,
+      data.companyName,
+      data.companyId !== undefined ? data.companyId : null,
+      data.solution,
       data.contacts !== undefined ? JSON.stringify(data.contacts) : null,
-      data.salesStage, data.imageCount, data.boxCount,
-      data.estimatedRevenue, data.probability, data.remarks, data.hoUpdate,
-      data.position, data.ownerId, data.ownerEmail,
+      data.salesStage,
+      data.imageCount,
+      data.boxCount,
+      data.estimatedRevenue,
+      data.probability,
+      data.remarks,
+      data.hoUpdate,
+      data.position,
+      data.ownerId,
+      data.ownerEmail,
       data.customFields !== undefined ? JSON.stringify(data.customFields) : null,
-      id, tenantId,
+      id,
+      tenantId,
     ]
-  );
-  return result.rows[0] ? mapLead(result.rows[0]) : null;
+  )
+  return result.rows[0] ? mapLead(result.rows[0]) : null
 }
 
-export async function softDeleteLead(id: string, tenantId: string) {
-  await query(
-    'UPDATE leads SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1 AND tenant_id = $2',
+export async function softDeleteLead(id: string, tenantId: string): Promise<boolean> {
+  const result = await query(
+    'UPDATE leads SET is_deleted = TRUE, deleted_at = NOW() WHERE id = $1 AND tenant_id = $2 AND is_deleted = FALSE',
     [id, tenantId]
   );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function restoreLead(id: string, tenantId: string) {

@@ -1,5 +1,15 @@
-import { useState, useMemo } from 'react'
-import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload, Clock } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Plus, Search, Loader2, Building2, Phone, Filter, X, Upload, Clock, Trash2, Tags, Bookmark, BookmarkCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -18,6 +28,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { toast } from 'sonner'
+import { Checkbox } from '@/components/ui/checkbox'
 import { LeadForm } from '@/components/leads/LeadForm'
 import { ImportLeadsModal } from '@/components/leads/ImportLeadsModal'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
@@ -32,6 +44,7 @@ import { useSalesStages, useStageColor, useCustomFields } from '@/store/tenantSt
 import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
 import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
 import { getLeadAgeDays, getLeadCreatedAt } from '@/lib/utils/leadAge'
+import { getSavedViews, createSavedView, deleteSavedView, type SavedView } from '@/services/savedViewService'
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -44,13 +57,37 @@ export function LeadsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [ageFilter, setAgeFilter] = useState<string>('all')      // admin only
   const [expiryFilter, setExpiryFilter] = useState<string>('all') // admin only
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [bulkActionKey, setBulkActionKey] = useState(0)
+  const [savedViews,        setSavedViews]        = useState<SavedView[]>([])
+  const [activeViewId,      setActiveViewId]       = useState<string | null>(null)
+  const [savingView,        setSavingView]         = useState(false)
+  const [saveViewName,      setSaveViewName]       = useState('')
+  const [showSaveViewInput, setShowSaveViewInput]  = useState(false)
 
-  const { leads, isLoading, createLead, updateLead, deleteLead, reassignLead, refetch } = useLeads()
+  const { leads, isLoading, createLead, updateLead, deleteLead, reassignLead, bulkUpdate, bulkDelete, refetch } = useLeads()
   const isAdmin = useIsAdmin()
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
   const cfConfigs = useCustomFields()
   const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
+
+  // Load saved views on mount
+  useEffect(() => {
+    void getSavedViews()
+      .then(setSavedViews)
+      .catch(() => {/* silently ignore */})
+  }, [])
+
+  // Current filter snapshot for saving views
+  const currentFilters = useMemo(() => ({
+    searchTerm,
+    stageFilter,
+    solutionFilter,
+    ageFilter,
+    expiryFilter,
+  }), [searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -101,11 +138,91 @@ export function LeadsPage() {
     setSearchTerm('')
     setAgeFilter('all')
     setExpiryFilter('all')
+    setSelectedIds(new Set())
   }
 
   const hasActiveFilters =
     stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== '' ||
     ageFilter !== 'all' || expiryFilter !== 'all'
+
+  const handleSaveView = async () => {
+    if (!saveViewName.trim()) return
+    setSavingView(true)
+    try {
+      const view = await createSavedView(saveViewName.trim(), currentFilters)
+      setSavedViews(prev => [...prev, view])
+      setActiveViewId(view.id)
+      setSaveViewName('')
+      setShowSaveViewInput(false)
+      toast.success(`View "${view.name}" saved`)
+    } catch {
+      toast.error('Failed to save view')
+    } finally {
+      setSavingView(false)
+    }
+  }
+
+  const handleLoadView = (view: SavedView) => {
+    const f = view.filters
+    setSearchTerm(typeof f.searchTerm === 'string' ? f.searchTerm : '')
+    setStageFilter(typeof f.stageFilter === 'string' ? f.stageFilter : 'all')
+    setSolutionFilter(typeof f.solutionFilter === 'string' ? f.solutionFilter : 'all')
+    setAgeFilter(typeof f.ageFilter === 'string' ? f.ageFilter : 'all')
+    setExpiryFilter(typeof f.expiryFilter === 'string' ? f.expiryFilter : 'all')
+    setActiveViewId(view.id)
+  }
+
+  const handleDeleteView = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await deleteSavedView(id)
+      setSavedViews(prev => prev.filter(v => v.id !== id))
+      if (activeViewId === id) setActiveViewId(null)
+      toast.success('View deleted')
+    } catch {
+      toast.error('Failed to delete view')
+    }
+  }
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const toggleSelectAll = () =>
+    setSelectedIds(prev =>
+      prev.size === filteredLeads.length
+        ? new Set()
+        : new Set(filteredLeads.map(l => l.id))
+    )
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const handleBulkStageChange = async (newStage: string) => {
+    try {
+      await bulkUpdate(Array.from(selectedIds), { salesStage: newStage })
+      toast.success(`${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} moved to ${newStage}`)
+      clearSelection()
+      setBulkActionKey(k => k + 1)
+    } catch {
+      toast.error('Bulk stage update failed')
+    }
+  }
+
+  const handleBulkDelete = () => setShowDeleteConfirm(true)
+
+  const confirmBulkDelete = async () => {
+    setShowDeleteConfirm(false)
+    try {
+      await bulkDelete(Array.from(selectedIds))
+      toast.success(`${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} deleted`)
+      clearSelection()
+    } catch {
+      toast.error('Bulk delete failed')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -146,7 +263,7 @@ export function LeadsPage() {
             <Input
               placeholder="Search leads..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setSelectedIds(new Set()) }}
               className="pl-10"
             />
           </div>
@@ -168,7 +285,7 @@ export function LeadsPage() {
               <div className="space-y-4 mt-6">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Sales Stage</label>
-                  <Select value={stageFilter} onValueChange={setStageFilter}>
+                  <Select value={stageFilter} onValueChange={v => { setStageFilter(v); setSelectedIds(new Set()) }}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Stages" />
                     </SelectTrigger>
@@ -184,7 +301,7 @@ export function LeadsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Solution</label>
-                  <Select value={solutionFilter} onValueChange={setSolutionFilter}>
+                  <Select value={solutionFilter} onValueChange={v => { setSolutionFilter(v); setSelectedIds(new Set()) }}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Solutions" />
                     </SelectTrigger>
@@ -204,7 +321,7 @@ export function LeadsPage() {
                       <label className="text-sm font-medium flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5" /> Lead Age
                       </label>
-                      <Select value={ageFilter} onValueChange={setAgeFilter}>
+                      <Select value={ageFilter} onValueChange={v => { setAgeFilter(v); setSelectedIds(new Set()) }}>
                         <SelectTrigger>
                           <SelectValue placeholder="Any age" />
                         </SelectTrigger>
@@ -220,7 +337,7 @@ export function LeadsPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Expiry Status</label>
-                      <Select value={expiryFilter} onValueChange={setExpiryFilter}>
+                      <Select value={expiryFilter} onValueChange={v => { setExpiryFilter(v); setSelectedIds(new Set()) }}>
                         <SelectTrigger>
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
@@ -247,7 +364,7 @@ export function LeadsPage() {
 
         {/* Desktop filters */}
         <div className="hidden md:flex gap-3 flex-wrap">
-          <Select value={stageFilter} onValueChange={setStageFilter}>
+          <Select value={stageFilter} onValueChange={v => { setStageFilter(v); setSelectedIds(new Set()) }}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter by stage" />
             </SelectTrigger>
@@ -260,7 +377,7 @@ export function LeadsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={solutionFilter} onValueChange={setSolutionFilter}>
+          <Select value={solutionFilter} onValueChange={v => { setSolutionFilter(v); setSelectedIds(new Set()) }}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter by solution" />
             </SelectTrigger>
@@ -275,7 +392,7 @@ export function LeadsPage() {
           </Select>
           {isAdmin && (
             <>
-              <Select value={ageFilter} onValueChange={setAgeFilter}>
+              <Select value={ageFilter} onValueChange={v => { setAgeFilter(v); setSelectedIds(new Set()) }}>
                 <SelectTrigger className="w-[160px]">
                   <Clock className="h-3.5 w-3.5 mr-1.5" />
                   <SelectValue placeholder="Any age" />
@@ -289,7 +406,7 @@ export function LeadsPage() {
                   <SelectItem value="365">1+ year old</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={expiryFilter} onValueChange={setExpiryFilter}>
+              <Select value={expiryFilter} onValueChange={v => { setExpiryFilter(v); setSelectedIds(new Set()) }}>
                 <SelectTrigger className="w-[170px]">
                   <SelectValue placeholder="Expiry status" />
                 </SelectTrigger>
@@ -311,10 +428,114 @@ export function LeadsPage() {
         </div>
       </div>
 
-      {/* Results count */}
-      <p className="text-sm text-muted-foreground">
-        Showing {filteredLeads.length} of {leads.length} leads
-      </p>
+      {/* Results count + select-all */}
+      <div className="flex items-center gap-3">
+        <p className="text-sm text-muted-foreground">
+          Showing {filteredLeads.length} of {leads.length} leads
+        </p>
+        {filteredLeads.length > 0 && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <Checkbox
+              checked={selectedIds.size === filteredLeads.length && filteredLeads.length > 0}
+              onCheckedChange={toggleSelectAll}
+            />
+            {selectedIds.size > 0
+              ? `${selectedIds.size} of ${filteredLeads.length} selected`
+              : `${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`}
+          </label>
+        )}
+      </div>
+
+      {/* Bulk action toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-16 z-30 flex items-center gap-3 bg-background border rounded-lg px-4 py-2.5 shadow-md mb-3">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <div className="flex-1" />
+
+          <Select key={bulkActionKey} onValueChange={handleBulkStageChange}>
+            <SelectTrigger className="h-8 w-44 text-xs">
+              <Tags className="h-3.5 w-3.5 mr-1.5" />
+              <SelectValue placeholder="Change stage…" />
+            </SelectTrigger>
+            <SelectContent>
+              {salesStages.map(s => (
+                <SelectItem key={s.id} value={s.name} className="text-xs">{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {isAdmin && (
+            <Button size="sm" variant="destructive" onClick={handleBulkDelete} className="h-8 text-xs">
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete
+            </Button>
+          )}
+
+          <Button size="sm" variant="ghost" onClick={clearSelection} className="h-8 text-xs">
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Saved views row */}
+      {(savedViews.length > 0 || hasActiveFilters) && (
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          {savedViews.map(view => (
+            <div
+              key={view.id}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border cursor-pointer transition-colors
+                ${activeViewId === view.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted hover:bg-muted/80 border-border'}`}
+              onClick={() => handleLoadView(view)}
+            >
+              <BookmarkCheck className="h-3 w-3" />
+              {view.name}
+              <button
+                className="ml-1 opacity-60 hover:opacity-100"
+                onClick={e => handleDeleteView(view.id, e)}
+                type="button"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {/* Save current filters button */}
+          {hasActiveFilters && !showSaveViewInput && (
+            <button
+              type="button"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+              onClick={() => setShowSaveViewInput(true)}
+            >
+              <Bookmark className="h-3 w-3" />
+              Save view
+            </button>
+          )}
+
+          {showSaveViewInput && (
+            <div className="flex items-center gap-1.5">
+              <input
+                className="h-7 px-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="View name…"
+                value={saveViewName}
+                onChange={e => setSaveViewName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') void handleSaveView()
+                  if (e.key === 'Escape') { setShowSaveViewInput(false); setSaveViewName('') }
+                }}
+                autoFocus
+              />
+              <Button size="sm" className="h-7 text-xs" onClick={handleSaveView} disabled={savingView || !saveViewName.trim()}>
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setShowSaveViewInput(false); setSaveViewName('') }}>
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Leads Grid - responsive columns */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -322,12 +543,18 @@ export function LeadsPage() {
           const risk = getRiskLevel(lead.probability)
           const expiryData = expiryMap[lead.id]
           return (
+            <div key={lead.id} className="relative">
+              <div className="absolute top-2 left-2 z-10" onClick={e => e.stopPropagation()}>
+                <Checkbox
+                  checked={selectedIds.has(lead.id)}
+                  onCheckedChange={() => toggleSelect(lead.id)}
+                />
+              </div>
             <Card
-              key={lead.id}
               className="cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99]"
               onClick={() => handleLeadClick(lead)}
             >
-              <CardContent className="p-3 md:p-4">
+              <CardContent className="p-3 md:p-4 pl-8 md:pl-9">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -406,6 +633,7 @@ export function LeadsPage() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           )
         })}
       </div>
@@ -449,6 +677,23 @@ export function LeadsPage() {
         onDelete={isAdmin ? deleteLead : undefined}
         onExpiryChanged={refetchExpiry}
       />
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the selected leads to trash. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,0 +1,121 @@
+import { query } from '../config/db'
+
+export interface Contact {
+  id:          string
+  tenantId:    string
+  companyId:   string | null
+  name:        string
+  phone:       string | null
+  email:       string | null
+  designation: string | null
+  createdAt:   string
+  updatedAt:   string
+}
+
+const mapRow = (r: Record<string, unknown>): Contact => ({
+  id:          r.id          as string,
+  tenantId:    r.tenant_id   as string,
+  companyId:   (r.company_id as string) ?? null,
+  name:        r.name        as string,
+  phone:       (r.phone      as string) ?? null,
+  email:       (r.email      as string) ?? null,
+  designation: (r.designation as string) ?? null,
+  createdAt:   r.created_at  as string,
+  updatedAt:   r.updated_at  as string,
+})
+
+export async function findAllContacts(tenantId: string): Promise<Contact[]> {
+  const result = await query(
+    'SELECT * FROM contacts WHERE tenant_id = $1 ORDER BY name ASC',
+    [tenantId]
+  )
+  return result.rows.map(mapRow)
+}
+
+// Returns only contacts linked (via company) to leads owned by the given user
+export async function findContactsByOwner(userId: string, tenantId: string): Promise<Contact[]> {
+  const result = await query(
+    `SELECT DISTINCT ct.*
+       FROM contacts ct
+       JOIN companies co ON co.id = ct.company_id AND co.tenant_id = $2
+       JOIN leads l ON l.company_id = co.id AND l.owner_id = $1 AND l.is_deleted = FALSE
+      WHERE ct.tenant_id = $2
+      ORDER BY ct.name ASC`,
+    [userId, tenantId]
+  )
+  return result.rows.map(mapRow)
+}
+
+export async function findContactsByCompany(companyId: string, tenantId: string): Promise<Contact[]> {
+  const result = await query(
+    `SELECT * FROM contacts
+      WHERE company_id = $1 AND tenant_id = $2
+      ORDER BY name ASC`,
+    [companyId, tenantId]
+  )
+  return result.rows.map(mapRow)
+}
+
+export async function findContactById(id: string, tenantId: string): Promise<Contact | null> {
+  const result = await query(
+    'SELECT * FROM contacts WHERE id = $1 AND tenant_id = $2',
+    [id, tenantId]
+  )
+  return result.rows[0] ? mapRow(result.rows[0]) : null
+}
+
+export async function createContact(data: {
+  tenantId:     string
+  companyId:    string | null
+  name:         string
+  phone?:       string | null
+  email?:       string | null
+  designation?: string | null
+}): Promise<Contact> {
+  const result = await query(
+    `INSERT INTO contacts (tenant_id, company_id, name, phone, email, designation)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [data.tenantId, data.companyId, data.name,
+     data.phone ?? null, data.email ?? null, data.designation ?? null]
+  )
+  return mapRow(result.rows[0])
+}
+
+export async function updateContact(id: string, tenantId: string, data: {
+  name?:        string
+  phone?:       string | null
+  email?:       string | null
+  designation?: string | null
+  companyId?:   string | null
+}): Promise<Contact | null> {
+  // Build dynamic SET so explicit null clears nullable fields (COALESCE would block it)
+  const sets: string[] = []
+  const params: unknown[] = []
+  let idx = 1
+
+  if (data.name        !== undefined) { sets.push(`name = $${idx++}`);        params.push(data.name) }
+  if (data.phone       !== undefined) { sets.push(`phone = $${idx++}`);       params.push(data.phone) }
+  if (data.email       !== undefined) { sets.push(`email = $${idx++}`);       params.push(data.email) }
+  if (data.designation !== undefined) { sets.push(`designation = $${idx++}`); params.push(data.designation) }
+  if (data.companyId   !== undefined) { sets.push(`company_id = $${idx++}`);  params.push(data.companyId) }
+
+  if (sets.length === 0) return findContactById(id, tenantId)
+
+  sets.push(`updated_at = NOW()`)
+  params.push(id, tenantId)
+
+  const result = await query(
+    `UPDATE contacts SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = $${idx + 1} RETURNING *`,
+    params
+  )
+  return result.rows[0] ? mapRow(result.rows[0]) : null
+}
+
+export async function deleteContact(id: string, tenantId: string): Promise<boolean> {
+  const result = await query(
+    'DELETE FROM contacts WHERE id = $1 AND tenant_id = $2',
+    [id, tenantId]
+  )
+  return (result.rowCount ?? 0) > 0
+}
