@@ -100,6 +100,11 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
       label: 'Companies',
     },
     {
+      to: '/contacts',
+      icon: <Users className="h-5 w-5 flex-shrink-0" />,
+      label: 'Contacts',
+    },
+    {
       to: '/reports',
       icon: <FileText className="h-5 w-5 flex-shrink-0" />,
       label: 'Reports',
