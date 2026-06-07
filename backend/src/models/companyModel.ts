@@ -108,10 +108,14 @@ export async function deleteCompany(id: string, tenantId: string): Promise<boole
 }
 
 export async function findOrCreateCompany(tenantId: string, name: string): Promise<Company> {
-  const existing = await query(
-    `SELECT * FROM companies WHERE tenant_id = $1 AND lower(name) = lower($2) AND is_deleted = FALSE LIMIT 1`,
+  // INSERT ... ON CONFLICT relies on uidx_companies_tenant_lower_name (migration 021)
+  const result = await query(
+    `INSERT INTO companies (tenant_id, name)
+     VALUES ($1, $2)
+     ON CONFLICT (tenant_id, lower(name)) WHERE is_deleted = FALSE
+     DO UPDATE SET updated_at = companies.updated_at
+     RETURNING *`,
     [tenantId, name]
   )
-  if (existing.rows[0]) return mapRow(existing.rows[0])
-  return createCompany({ tenantId, name })
+  return mapRow(result.rows[0])
 }

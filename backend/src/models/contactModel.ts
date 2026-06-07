@@ -75,17 +75,25 @@ export async function updateContact(id: string, tenantId: string, data: {
   designation?: string | null
   companyId?:   string | null
 }): Promise<Contact | null> {
+  // Build dynamic SET so explicit null clears nullable fields (COALESCE would block it)
+  const sets: string[] = []
+  const params: unknown[] = []
+  let idx = 1
+
+  if (data.name        !== undefined) { sets.push(`name = $${idx++}`);        params.push(data.name) }
+  if (data.phone       !== undefined) { sets.push(`phone = $${idx++}`);       params.push(data.phone) }
+  if (data.email       !== undefined) { sets.push(`email = $${idx++}`);       params.push(data.email) }
+  if (data.designation !== undefined) { sets.push(`designation = $${idx++}`); params.push(data.designation) }
+  if (data.companyId   !== undefined) { sets.push(`company_id = $${idx++}`);  params.push(data.companyId) }
+
+  if (sets.length === 0) return findContactById(id, tenantId)
+
+  sets.push(`updated_at = NOW()`)
+  params.push(id, tenantId)
+
   const result = await query(
-    `UPDATE contacts SET
-       name        = COALESCE($1, name),
-       phone       = COALESCE($2, phone),
-       email       = COALESCE($3, email),
-       designation = COALESCE($4, designation),
-       company_id  = COALESCE($5, company_id),
-       updated_at  = NOW()
-     WHERE id = $6 AND tenant_id = $7
-     RETURNING *`,
-    [data.name, data.phone, data.email, data.designation, data.companyId, id, tenantId]
+    `UPDATE contacts SET ${sets.join(', ')} WHERE id = $${idx} AND tenant_id = $${idx + 1} RETURNING *`,
+    params
   )
   return result.rows[0] ? mapRow(result.rows[0]) : null
 }

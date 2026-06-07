@@ -95,9 +95,9 @@ export function useLeads() {
 
   const bulkUpdate = useCallback(
     async (ids: string[], update: { salesStage?: string; ownerId?: string; ownerEmail?: string }) => {
-      await bulkUpdateLeadsFn(ids, update)
-      const idSet = new Set(ids)
-      setLeads(prev => prev.map(l => idSet.has(l.id) ? { ...l, ...update } : l))
+      const { results } = await bulkUpdateLeadsFn(ids, update)
+      const succeededIds = new Set(results.filter(r => r.ok).map(r => r.id))
+      setLeads(prev => prev.map(l => succeededIds.has(l.id) ? { ...l, ...update } : l))
     },
     []
   )

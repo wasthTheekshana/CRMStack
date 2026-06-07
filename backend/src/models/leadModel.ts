@@ -31,7 +31,7 @@ export async function findAllLeads(userId: string, tenantId: string, isAdmin: bo
     SELECT l.*,
            COALESCE(c.name, l.company_name) AS company_name
       FROM leads l
-      LEFT JOIN companies c ON c.id = l.company_id
+      LEFT JOIN companies c ON c.id = l.company_id AND c.tenant_id = l.tenant_id
      WHERE l.is_deleted = FALSE AND l.tenant_id = $1`
 
   const result = isAdmin
@@ -45,7 +45,7 @@ export async function findDeletedLeads(userId: string, tenantId: string, isAdmin
     SELECT l.*,
            COALESCE(c.name, l.company_name) AS company_name
       FROM leads l
-      LEFT JOIN companies c ON c.id = l.company_id
+      LEFT JOIN companies c ON c.id = l.company_id AND c.tenant_id = l.tenant_id
      WHERE l.is_deleted = TRUE AND l.tenant_id = $1`
 
   const result = isAdmin
@@ -59,7 +59,7 @@ export async function findLeadById(id: string, tenantId: string) {
     `SELECT l.*,
             COALESCE(c.name, l.company_name) AS company_name
        FROM leads l
-       LEFT JOIN companies c ON c.id = l.company_id
+       LEFT JOIN companies c ON c.id = l.company_id AND c.tenant_id = l.tenant_id
       WHERE l.id = $1 AND l.tenant_id = $2`,
     [id, tenantId]
   )

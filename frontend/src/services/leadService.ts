@@ -43,7 +43,7 @@ export const bulkUpdateLeads = (
   ids: string[],
   update: { salesStage?: string; ownerId?: string; ownerEmail?: string }
 ) =>
-  apiFetch<{ updated: number }>('/api/leads/bulk', {
+  apiFetch<{ results: { id: string; ok: boolean }[]; updated: number }>('/api/leads/bulk', {
     method: 'PATCH',
     body: JSON.stringify({ ids, update }),
   });

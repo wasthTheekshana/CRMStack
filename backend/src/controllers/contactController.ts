@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { findAllContacts, findContactsByCompany, findContactById, createContact, updateContact, deleteContact } from '../models/contactModel'
+import { findCompanyById } from '../models/companyModel'
 
 export async function listAllContacts(req: Request, res: Response) {
   try {
@@ -28,6 +29,13 @@ export async function createContactHandler(req: Request, res: Response) {
     return
   }
   try {
+    if (companyId) {
+      const company = await findCompanyById(companyId, req.user!.tenantId)
+      if (!company) {
+        res.status(400).json({ error: 'Invalid companyId' })
+        return
+      }
+    }
     const contact = await createContact({
       tenantId:    req.user!.tenantId,
       companyId:   companyId ?? null,
@@ -46,6 +54,13 @@ export async function createContactHandler(req: Request, res: Response) {
 export async function updateContactHandler(req: Request, res: Response) {
   const { name, phone, email, designation, companyId } = req.body
   try {
+    if (companyId != null) {
+      const company = await findCompanyById(companyId, req.user!.tenantId)
+      if (!company) {
+        res.status(400).json({ error: 'Invalid companyId' })
+        return
+      }
+    }
     const updated = await updateContact(req.params.id, req.user!.tenantId, {
       name: name?.trim(), phone, email, designation, companyId,
     })
