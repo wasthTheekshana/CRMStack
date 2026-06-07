@@ -24,4 +24,7 @@ COPY migrations ./migrations
 
 USER dokuser
 EXPOSE 4000
-CMD ["node", "dist/index.js"]
+# Run pending migrations, then start the server.
+# migrate.js is idempotent (tracks applied files in schema_migrations),
+# so running it on every container start is safe.
+CMD ["sh", "-c", "node dist/lib/migrate.js && node dist/index.js"]
