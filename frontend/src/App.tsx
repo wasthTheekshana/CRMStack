@@ -23,6 +23,7 @@ import { ReportsPage } from '@/pages/shared/ReportsPage'
 import { ProfilePage } from '@/pages/shared/ProfilePage'
 import { SalesTargetsPage } from '@/pages/shared/SalesTargetsPage'
 import { DeletedLeadsPage } from '@/pages/shared/DeletedLeadsPage'
+import { CompaniesPage } from '@/pages/shared/CompaniesPage'
 import { SALogin } from '@/pages/superadmin/SALogin'
 import { SALayout } from '@/pages/superadmin/SALayout'
 import { SADashboard } from '@/pages/superadmin/SADashboard'
@@ -85,6 +86,7 @@ function App() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="targets" element={<SalesTargetsPage />} />
         <Route path="deleted-leads" element={<DeletedLeadsPage />} />
+        <Route path="companies" element={<CompaniesPage />} />
 
         {/* Admin-only routes */}
         <Route
