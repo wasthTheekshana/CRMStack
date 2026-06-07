@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth } from '../middleware/auth'
+import { requireAuth, requireAdmin } from '../middleware/auth'
 import {
   listAllContacts, listContactsByCompany,
   createContactHandler, updateContactHandler, deleteContactHandler,
@@ -7,7 +7,7 @@ import {
 
 const router = Router()
 
-// GET /api/contacts — all contacts for tenant
+// GET /api/contacts — scoped by role in controller (admin = all, sales = own)
 // GET /api/contacts?companyId=xxx — filtered by company
 router.get('/', requireAuth, (req, res) => {
   const companyId = req.query.companyId
@@ -18,8 +18,8 @@ router.get('/', requireAuth, (req, res) => {
   return listAllContacts(req, res)
 })
 
-router.post('/',      requireAuth, createContactHandler)
-router.put('/:id',    requireAuth, updateContactHandler)
-router.delete('/:id', requireAuth, deleteContactHandler)
+router.post('/',      requireAuth, requireAdmin, createContactHandler)
+router.put('/:id',    requireAuth, requireAdmin, updateContactHandler)
+router.delete('/:id', requireAuth, requireAdmin, deleteContactHandler)
 
 export default router

@@ -32,6 +32,20 @@ export async function findAllContacts(tenantId: string): Promise<Contact[]> {
   return result.rows.map(mapRow)
 }
 
+// Returns only contacts linked (via company) to leads owned by the given user
+export async function findContactsByOwner(userId: string, tenantId: string): Promise<Contact[]> {
+  const result = await query(
+    `SELECT DISTINCT ct.*
+       FROM contacts ct
+       JOIN companies co ON co.id = ct.company_id AND co.tenant_id = $2
+       JOIN leads l ON l.company_id = co.id AND l.owner_id = $1 AND l.is_deleted = FALSE
+      WHERE ct.tenant_id = $2
+      ORDER BY ct.name ASC`,
+    [userId, tenantId]
+  )
+  return result.rows.map(mapRow)
+}
+
 export async function findContactsByCompany(companyId: string, tenantId: string): Promise<Contact[]> {
   const result = await query(
     `SELECT * FROM contacts
