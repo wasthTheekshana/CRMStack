@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CompanyPicker } from './CompanyPicker'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -60,6 +61,7 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
   const visibleFields  = useVisibleFields()
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
 
+  const [companyId, setCompanyId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([
     { id: generateContactId(), name: '', phone: '', email: '', designation: '', isPrimary: true }
@@ -144,12 +146,14 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
     try {
       await onSave({
         ...data,
+        companyId: companyId || undefined,
         contacts: validContacts,
         salesStage: data.salesStage as SalesStage,
         customFields: customFieldValues,
       })
       toast.success('Lead created successfully')
       reset()
+      setCompanyId('')
       setCustomFieldValues({})
       setContacts([{ id: generateContactId(), name: '', phone: '', email: '', designation: '', isPrimary: true }])
       onClose()
@@ -163,6 +167,7 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
 
   const handleClose = () => {
     reset()
+    setCompanyId('')
     setContacts([{ id: generateContactId(), name: '', phone: '', email: '', designation: '', isPrimary: true }])
     setCustomFieldValues({})
     setContactError(null)
@@ -180,11 +185,13 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="companyName">Company Name *</Label>
-              <Input
-                id="companyName"
-                {...register('companyName')}
-                disabled={isLoading}
-                placeholder="Enter company name"
+              <CompanyPicker
+                value={companyId}
+                name={watch('companyName')}
+                onChange={(id, cname) => {
+                  setCompanyId(id)
+                  setValue('companyName', cname, { shouldValidate: true })
+                }}
               />
               {errors.companyName && (
                 <p className="text-xs text-red-500">{errors.companyName.message}</p>
