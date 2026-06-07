@@ -14,6 +14,7 @@ import notificationRoutes  from './notifications';
 import importRoutes        from './import';
 import publicBrandingRoutes from './publicBranding';
 import savedViewRoutes     from './savedViews';
+import companyRoutes       from './companies';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/tenant/config', tenantConfigRoutes);
 router.use('/super-admin',   superAdminRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/saved-views',   savedViewRoutes);
+router.use('/companies',     companyRoutes);
 
 export default router;
