@@ -66,6 +66,16 @@ export async function findLeadById(id: string, tenantId: string) {
   return result.rows[0] ? mapLead(result.rows[0]) : null
 }
 
+export async function ownsLeadForCompany(userId: string, companyId: string, tenantId: string): Promise<boolean> {
+  const result = await query(
+    `SELECT 1 FROM leads
+      WHERE owner_id = $1 AND company_id = $2 AND tenant_id = $3 AND is_deleted = FALSE
+      LIMIT 1`,
+    [userId, companyId, tenantId]
+  )
+  return result.rows.length > 0
+}
+
 export async function getLeadOwnerId(id: string, tenantId: string): Promise<string | null> {
   const result = await query(
     'SELECT owner_id FROM leads WHERE id = $1 AND tenant_id = $2',

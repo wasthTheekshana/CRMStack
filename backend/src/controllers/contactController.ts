@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { findAllContacts, findContactsByOwner, findContactsByCompany, findContactById, createContact, updateContact, deleteContact } from '../models/contactModel'
 import { findCompanyById } from '../models/companyModel'
+import { ownsLeadForCompany } from '../models/leadModel'
 
 export async function listAllContacts(req: Request, res: Response) {
   try {
@@ -19,9 +20,8 @@ export async function listContactsByCompany(req: Request, res: Response) {
   try {
     const isAdmin = req.user!.role === 'admin'
     if (!isAdmin) {
-      // Verify the sales rep owns at least one lead linked to this company
-      const company = await findCompanyById(req.params.companyId, req.user!.tenantId)
-      if (!company) { res.status(404).json({ error: 'Not found' }); return }
+      const owns = await ownsLeadForCompany(req.user!.userId, req.params.companyId, req.user!.tenantId)
+      if (!owns) { res.status(404).json({ error: 'Not found' }); return }
     }
     const contacts = await findContactsByCompany(req.params.companyId, req.user!.tenantId)
     res.json(contacts)
