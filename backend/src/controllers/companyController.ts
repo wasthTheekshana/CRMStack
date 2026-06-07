@@ -3,7 +3,7 @@ import {
   findAllCompanies, findCompanyById,
   createCompany, updateCompany, deleteCompany,
 } from '../models/companyModel'
-// import { findContactsByCompany } from '../models/contactModel'  // TODO: restore in Task 3
+import { findContactsByCompany } from '../models/contactModel'
 
 export async function listCompanies(req: Request, res: Response) {
   try {
@@ -19,9 +19,8 @@ export async function getCompany(req: Request, res: Response) {
   try {
     const company = await findCompanyById(req.params.id, req.user!.tenantId)
     if (!company) { res.status(404).json({ error: 'Not found' }); return }
-    // const contacts = await findContactsByCompany(req.params.id, req.user!.tenantId)
-    // res.json({ ...company, contacts })
-    res.json(company)  // contacts will be added in Task 3
+    const contacts = await findContactsByCompany(req.params.id, req.user!.tenantId)
+    res.json({ ...company, contacts })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
