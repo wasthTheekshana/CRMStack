@@ -117,7 +117,7 @@ export async function getLead(req: Request, res: Response) {
 
 export async function createLeadHandler(req: Request, res: Response) {
   const {
-    companyName, solution, contacts, salesStage,
+    companyName, companyId, solution, contacts, salesStage,
     imageCount, boxCount, estimatedRevenue, probability,
     remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
   } = req.body;
@@ -161,7 +161,9 @@ export async function createLeadHandler(req: Request, res: Response) {
     }
 
     const lead = await createLead({
-      companyName, solution,
+      companyName,
+      companyId:        companyId ?? null,
+      solution,
       contacts:         contacts || [],
       salesStage,
       imageCount:       imageCount || 0,
@@ -191,7 +193,7 @@ export async function createLeadHandler(req: Request, res: Response) {
 
 export async function updateLeadHandler(req: Request, res: Response) {
   const {
-    companyName, solution, contacts, salesStage,
+    companyName, companyId, solution, contacts, salesStage,
     imageCount, boxCount, estimatedRevenue, probability,
     remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
   } = req.body;
@@ -223,7 +225,7 @@ export async function updateLeadHandler(req: Request, res: Response) {
     }
 
     const lead = await updateLead(req.params.id, req.user!.tenantId, {
-      companyName, solution, contacts, salesStage,
+      companyName, companyId, solution, contacts, salesStage,
       imageCount, boxCount, estimatedRevenue, probability,
       remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
     });
