@@ -140,7 +140,7 @@ export async function createLeadHandler(req: Request, res: Response) {
 
   if (companyId) {
     try {
-      const company = await findCompanyById(companyId, req.user!.tenantId)
+      const company = await findCompanyById(companyId, req.user!.tenantId, actualOwnerId)
       if (!company) {
         res.status(400).json({ error: 'Invalid companyId' })
         return
@@ -276,7 +276,8 @@ export async function updateLeadHandler(req: Request, res: Response) {
     }
 
     if (companyId != null) {
-      const company = await findCompanyById(companyId, req.user!.tenantId)
+      const isAdmin = req.user!.role === 'admin'
+      const company = await findCompanyById(companyId, req.user!.tenantId, isAdmin ? undefined : req.user!.userId)
       if (!company) {
         res.status(400).json({ error: 'Invalid companyId' })
         return

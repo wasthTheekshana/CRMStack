@@ -76,15 +76,6 @@ export async function ownsLeadForCompany(userId: string, companyId: string, tena
   return result.rows.length > 0
 }
 
-export async function otherUsersHaveLeadsForCompany(userId: string, companyId: string, tenantId: string): Promise<boolean> {
-  const result = await query(
-    `SELECT 1 FROM leads
-      WHERE company_id = $1 AND tenant_id = $2 AND owner_id != $3 AND is_deleted = FALSE
-      LIMIT 1`,
-    [companyId, tenantId, userId]
-  )
-  return result.rows.length > 0
-}
 
 export async function getLeadOwnerId(id: string, tenantId: string): Promise<string | null> {
   const result = await query(
