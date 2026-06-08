@@ -259,6 +259,11 @@ export async function updateLeadHandler(req: Request, res: Response) {
       res.status(403).json({ error: 'Access denied' }); return;
     }
 
+    // Non-admins cannot reassign lead ownership — use PATCH /:id/owner for that
+    if (req.user!.role !== 'admin' && (ownerId !== undefined || ownerEmail !== undefined)) {
+      res.status(403).json({ error: 'Only admins can reassign lead ownership' }); return;
+    }
+
     const validationError = validateLeadFields(req.body);
     if (validationError) {
       res.status(400).json({ error: validationError });
