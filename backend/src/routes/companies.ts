@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth, requireAdmin } from '../middleware/auth'
+import { requireAuth } from '../middleware/auth'
 import {
   listCompanies, getCompany, createCompanyHandler,
   updateCompanyHandler, deleteCompanyHandler,
@@ -9,8 +9,8 @@ const router = Router()
 
 router.get('/',       requireAuth, listCompanies)
 router.get('/:id',    requireAuth, getCompany)
-router.post('/',      requireAuth, requireAdmin, createCompanyHandler)
-router.put('/:id',    requireAuth, requireAdmin, updateCompanyHandler)
-router.delete('/:id', requireAuth, requireAdmin, deleteCompanyHandler)
+router.post('/',      requireAuth, createCompanyHandler)
+router.put('/:id',    requireAuth, updateCompanyHandler)
+router.delete('/:id', requireAuth, deleteCompanyHandler)
 
 export default router

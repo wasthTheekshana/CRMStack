@@ -4,6 +4,7 @@ import {
   createCompany, updateCompany, deleteCompany,
 } from '../models/companyModel'
 import { findContactsByCompany } from '../models/contactModel'
+import { ownsLeadForCompany } from '../models/leadModel'
 
 export async function listCompanies(req: Request, res: Response) {
   try {
@@ -52,6 +53,11 @@ export async function createCompanyHandler(req: Request, res: Response) {
 export async function updateCompanyHandler(req: Request, res: Response) {
   const { name, website, phone, address, notes } = req.body
   try {
+    const isAdmin = req.user!.role === 'admin'
+    if (!isAdmin) {
+      const owns = await ownsLeadForCompany(req.user!.userId, req.params.id, req.user!.tenantId)
+      if (!owns) { res.status(403).json({ error: 'You can only edit companies linked to your leads' }); return }
+    }
     const updated = await updateCompany(req.params.id, req.user!.tenantId, {
       name: name?.trim(),
       website, phone, address, notes,
@@ -66,6 +72,11 @@ export async function updateCompanyHandler(req: Request, res: Response) {
 
 export async function deleteCompanyHandler(req: Request, res: Response) {
   try {
+    const isAdmin = req.user!.role === 'admin'
+    if (!isAdmin) {
+      const owns = await ownsLeadForCompany(req.user!.userId, req.params.id, req.user!.tenantId)
+      if (!owns) { res.status(403).json({ error: 'You can only delete companies linked to your leads' }); return }
+    }
     const deleted = await deleteCompany(req.params.id, req.user!.tenantId)
     if (!deleted) { res.status(404).json({ error: 'Not found' }); return }
     res.json({ success: true })
