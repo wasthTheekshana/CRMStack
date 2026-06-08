@@ -20,7 +20,7 @@ import {
 import { createActivity } from '../models/activityModel';
 import { countActiveLeads } from '../models/tenantModel';
 import { findConfigByTenantId } from '../models/tenantConfigModel';
-import { findCompanyById } from '../models/companyModel';
+import { findCompanyById, findOrCreateCompany } from '../models/companyModel';
 import { pool } from '../config/db';
 
 const MAX_STR      = 500;   // short fields: names, stages, emails
@@ -162,6 +162,14 @@ export async function createLeadHandler(req: Request, res: Response) {
       return
     }
 
+    // Auto-create company record if only a name was provided (no existing company selected).
+    // This ensures the Companies page stays populated for every lead.
+    let resolvedCompanyId = companyId ?? null
+    if (!resolvedCompanyId && companyName?.trim()) {
+      const company = await findOrCreateCompany(req.user!.tenantId, actualOwnerId, companyName.trim())
+      resolvedCompanyId = company.id
+    }
+
     let lead
     if (req.tenant?.leadLimit != null) {
       const client = await pool.connect()
@@ -192,7 +200,7 @@ export async function createLeadHandler(req: Request, res: Response) {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
            RETURNING *`,
           [
-            companyName, companyId ?? null, solution,
+            companyName, resolvedCompanyId, solution,
             JSON.stringify(contacts || []),
             salesStage, imageCount || 0, boxCount || 0,
             estimatedRevenue || 0, probability || 0,
@@ -213,7 +221,7 @@ export async function createLeadHandler(req: Request, res: Response) {
     } else {
       lead = await createLead({
         companyName,
-        companyId:        companyId ?? null,
+        companyId:        resolvedCompanyId,
         solution,
         contacts:         contacts || [],
         salesStage,

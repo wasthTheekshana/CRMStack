@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../config/db';
 import { createLead, updateLead } from '../models/leadModel';
+import { findOrCreateCompany } from '../models/companyModel';
 import { findConfigByTenantId, DEFAULT_STAGES, DEFAULT_SOLUTIONS } from '../models/tenantConfigModel';
 import { findUserByEmailInTenant, findUserByIdInTenant } from '../models/userModel';
 
@@ -270,8 +271,14 @@ export async function importConfirm(req: Request, res: Response) {
 
       try {
         if (row.action === 'create') {
+          let companyId: string | null = null
+          if (row.data.companyName) {
+            const company = await findOrCreateCompany(tenantId, row.data.ownerId, row.data.companyName)
+            companyId = company.id
+          }
           await createLead({
             ...row.data,
+            companyId,
             position:     null,
             tenantId,
             customFields: row.data.customFields ?? {},
