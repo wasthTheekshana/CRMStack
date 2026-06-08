@@ -1,0 +1,4 @@
+services:
+  frontend:
+    volumes:
+      - /usr/share/nginx/html/crm:/output

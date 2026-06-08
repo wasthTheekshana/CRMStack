@@ -51,8 +51,6 @@ services:
         VITE_API_URL: ""
     container_name: dokcrm_frontend
     restart: on-failure
-    volumes:
-      - /usr/share/nginx/html/crm:/output
 
 volumes:
   postgres_data:
