@@ -5,6 +5,10 @@
 
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id);
 
+-- Drop the old per-tenant unique index before backfill so that inserting
+-- duplicate names (for different owners) does not violate it.
+DROP INDEX IF EXISTS uidx_companies_tenant_lower_name;
+
 DO $$
 DECLARE
   comp      RECORD;
@@ -56,8 +60,6 @@ BEGIN
 END $$;
 
 ALTER TABLE companies ALTER COLUMN owner_id SET NOT NULL;
-
-DROP INDEX IF EXISTS uidx_companies_tenant_lower_name;
 
 CREATE UNIQUE INDEX uidx_companies_owner_lower_name
   ON companies (tenant_id, owner_id, lower(name))
