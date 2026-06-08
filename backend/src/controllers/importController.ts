@@ -283,6 +283,23 @@ export async function importConfirm(req: Request, res: Response) {
             tenantId,
             customFields: row.data.customFields ?? {},
           });
+          // Create contact records in the contacts table so they appear on the Contacts page.
+          // Skip contacts with no name. Use INSERT ... ON CONFLICT DO NOTHING to avoid
+          // duplicates if the same Excel is imported twice.
+          for (const c of row.data.contacts) {
+            if (!c.name?.trim()) continue
+            await query(
+              `INSERT INTO contacts (tenant_id, company_id, name, phone, email)
+               SELECT $1, $2, $3, $4, $5
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM contacts
+                 WHERE tenant_id = $1
+                   AND (company_id = $2 OR (company_id IS NULL AND $2 IS NULL))
+                   AND lower(name) = lower($3)
+               )`,
+              [tenantId, companyId, c.name.trim(), c.phone || null, c.email || null]
+            )
+          }
           created++;
         } else if (row.action === 'update') {
           if (row.existingId) {
