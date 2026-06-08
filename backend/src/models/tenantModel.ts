@@ -39,6 +39,11 @@ export async function findTenantBySubdomain(subdomain: string): Promise<Tenant |
   return result.rows[0] ? mapTenant(result.rows[0]) : null;
 }
 
+export async function getTenantStatus(id: string): Promise<Tenant['status'] | null> {
+  const result = await query('SELECT status FROM tenants WHERE id = $1', [id]);
+  return result.rows[0] ? (result.rows[0].status as Tenant['status']) : null;
+}
+
 export async function findTenantById(id: string): Promise<Tenant | null> {
   const result = await query(
     'SELECT * FROM tenants WHERE id = $1',
