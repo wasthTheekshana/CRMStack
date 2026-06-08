@@ -4,7 +4,7 @@ import {
   createCompany, updateCompany, deleteCompany,
 } from '../models/companyModel'
 import { findContactsByCompany } from '../models/contactModel'
-import { ownsLeadForCompany } from '../models/leadModel'
+import { ownsLeadForCompany, otherUsersHaveLeadsForCompany } from '../models/leadModel'
 
 export async function listCompanies(req: Request, res: Response) {
   try {
@@ -76,6 +76,8 @@ export async function deleteCompanyHandler(req: Request, res: Response) {
     if (!isAdmin) {
       const owns = await ownsLeadForCompany(req.user!.userId, req.params.id, req.user!.tenantId)
       if (!owns) { res.status(403).json({ error: 'You can only delete companies linked to your leads' }); return }
+      const shared = await otherUsersHaveLeadsForCompany(req.user!.userId, req.params.id, req.user!.tenantId)
+      if (shared) { res.status(403).json({ error: 'This company is shared with other team members. Ask an admin to delete it.' }); return }
     }
     const deleted = await deleteCompany(req.params.id, req.user!.tenantId)
     if (!deleted) { res.status(404).json({ error: 'Not found' }); return }
