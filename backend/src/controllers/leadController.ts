@@ -267,10 +267,10 @@ export async function updateLeadHandler(req: Request, res: Response) {
       res.status(403).json({ error: 'Access denied' }); return;
     }
 
-    // Non-admins cannot reassign lead ownership — use PATCH /:id/owner for that
-    if (req.user!.role !== 'admin' && (ownerId !== undefined || ownerEmail !== undefined)) {
-      res.status(403).json({ error: 'Only admins can reassign lead ownership' }); return;
-    }
+    // Non-admins cannot reassign lead ownership — silently ignore any ownerId/ownerEmail
+    // they send (frontend always includes the full lead object, including current owner)
+    const resolvedOwnerId    = req.user!.role === 'admin' ? ownerId    : undefined;
+    const resolvedOwnerEmail = req.user!.role === 'admin' ? ownerEmail : undefined;
 
     const validationError = validateLeadFields(req.body);
     if (validationError) {
@@ -300,7 +300,9 @@ export async function updateLeadHandler(req: Request, res: Response) {
     const lead = await updateLead(req.params.id, req.user!.tenantId, {
       companyName, companyId, solution, contacts, salesStage,
       imageCount, boxCount, estimatedRevenue, probability,
-      remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
+      remarks, hoUpdate, position,
+      ownerId: resolvedOwnerId, ownerEmail: resolvedOwnerEmail,
+      customFields,
     });
     if (!lead) { res.status(404).json({ error: 'Lead not found' }); return; }
 
