@@ -4,9 +4,15 @@ import jwt from 'jsonwebtoken';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Cookies are Secure (HTTPS-only) in production. A dockerized dev/e2e stack runs
+// NODE_ENV=production but is served over plain http://localhost, where the browser
+// would drop a Secure cookie — set COOKIE_SECURE=false there to allow it. Leave the
+// variable UNSET in real production so cookies stay Secure.
+const cookieSecure = process.env.COOKIE_SECURE === 'false' ? false : isProduction;
+
 const AUTH_COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
-  secure: isProduction,
+  secure: cookieSecure,
   sameSite: isProduction ? 'strict' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };

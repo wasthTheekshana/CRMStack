@@ -5,11 +5,14 @@ import { resolveTenantOptional } from '../middleware/tenantResolver';
 
 const router = Router();
 
-// 10 attempts per 15 minutes per IP — prevents brute-force on login
-// Disabled in test environment so the E2E suite isn't blocked by rate limiting
+// 10 attempts per 15 minutes per IP — prevents brute-force on login.
+// Raised automatically in the test environment, and overridable via
+// LOGIN_RATE_LIMIT_MAX so a dockerized dev/e2e stack (which runs NODE_ENV=production)
+// can disable throttling for end-to-end tests without weakening real production,
+// where the variable is left unset.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'test' ? 10_000 : 10,
+  max: Number(process.env.LOGIN_RATE_LIMIT_MAX) || (process.env.NODE_ENV === 'test' ? 10_000 : 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts, please try again later' },
