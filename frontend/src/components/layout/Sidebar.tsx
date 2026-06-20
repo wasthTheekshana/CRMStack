@@ -15,6 +15,7 @@ import {
   Target,
   CalendarRange,
   Trash2,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { useAuthStore, useIsAdmin } from '@/store/authStore'
@@ -123,6 +124,11 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
   ]
 
   const adminNavItems = [
+    {
+      to: '/team-activity',
+      icon: <Activity className="h-5 w-5 flex-shrink-0" />,
+      label: 'Team Activity',
+    },
     {
       to: '/rep-comparison',
       icon: <GitCompare className="h-5 w-5 flex-shrink-0" />,

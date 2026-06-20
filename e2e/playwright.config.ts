@@ -10,7 +10,7 @@ export default defineConfig({
   globalSetup:    './global-setup.ts',
   globalTeardown: './global-teardown.ts',
   use: {
-    baseURL:          'http://localhost:3000',
+    baseURL:          'http://localhost:80',
     trace:            'on-first-retry',
   },
   projects: [
@@ -24,13 +24,6 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout:             30_000,
       env:                 { NODE_ENV: 'test' },
-    },
-    {
-      command:             'npm run dev',
-      cwd:                 '../frontend',
-      port:                3000,
-      reuseExistingServer: !process.env.CI,
-      timeout:             60_000,
     },
   ],
 })

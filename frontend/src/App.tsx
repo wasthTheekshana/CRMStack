@@ -13,6 +13,7 @@ import { TrialExpiredPage }    from '@/pages/auth/TrialExpiredPage'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { SalesDashboard } from '@/pages/sales/SalesDashboard'
 import { RepComparison } from '@/pages/admin/RepComparison'
+import { TeamActivity } from '@/pages/admin/TeamActivity'
 import { TeamManagement } from '@/pages/admin/TeamManagement'
 import { QuarterlyTargets } from '@/pages/admin/QuarterlyTargets'
 import { WorkspaceSettings } from '@/pages/admin/WorkspaceSettings'
@@ -96,6 +97,14 @@ function App() {
           element={
             <RoleGuard allowedRoles={['admin']}>
               <RepComparison />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="team-activity"
+          element={
+            <RoleGuard allowedRoles={['admin']}>
+              <TeamActivity />
             </RoleGuard>
           }
         />

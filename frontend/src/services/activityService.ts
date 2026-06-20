@@ -1,8 +1,26 @@
 import { apiFetch } from './apiClient';
 import type { Activity } from '../models';
 
-export const getActivities = () =>
-  apiFetch<Activity[]>('/api/activities');
+export interface ActivityFilters {
+  ownerId?:   string;
+  type?:      string;
+  leadId?:    string;
+  startDate?: string;
+  endDate?:   string;
+  limit?:     number;
+}
+
+export const getActivities = (filters: ActivityFilters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.ownerId)        params.set('ownerId', filters.ownerId);
+  if (filters.type)           params.set('type', filters.type);
+  if (filters.leadId)         params.set('leadId', filters.leadId);
+  if (filters.startDate)      params.set('startDate', filters.startDate);
+  if (filters.endDate)        params.set('endDate', filters.endDate);
+  if (filters.limit != null)  params.set('limit', String(filters.limit));
+  const qs = params.toString();
+  return apiFetch<Activity[]>(`/api/activities${qs ? `?${qs}` : ''}`);
+};
 
 export const getActivitiesByLead = (leadId: string) =>
   apiFetch<Activity[]>(`/api/activities/lead/${leadId}`);
