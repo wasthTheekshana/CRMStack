@@ -278,14 +278,20 @@ export async function updateLeadHandler(req: Request, res: Response) {
       return;
     }
 
-    const merged = {
-      ...(existingLead.customFields as Record<string, unknown> ?? {}),
-      ...(customFields != null ? (customFields as Record<string, unknown>) : {}),
-    }
-    const cfError = await validateRequiredCustomFields(req.user!.tenantId, merged)
-    if (cfError) {
-      res.status(400).json({ error: cfError })
-      return
+    // Only enforce required custom fields when the client actually submits
+    // customFields (i.e. the full edit form). Partial updates such as a Kanban
+    // drag — which send only `position` or `salesStage` — must not be blocked
+    // because a lead is missing a required custom-field value it never had.
+    if (customFields != null) {
+      const merged = {
+        ...(existingLead.customFields as Record<string, unknown> ?? {}),
+        ...(customFields as Record<string, unknown>),
+      }
+      const cfError = await validateRequiredCustomFields(req.user!.tenantId, merged)
+      if (cfError) {
+        res.status(400).json({ error: cfError })
+        return
+      }
     }
 
     if (companyId != null) {
