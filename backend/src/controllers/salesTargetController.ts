@@ -39,7 +39,9 @@ export async function createTargetHandler(req: Request, res: Response) {
 export async function updateTargetHandler(req: Request, res: Response) {
   const { target, achievement } = req.body;
   try {
-    const result = await updateTarget(req.params.id, req.user!.tenantId, { target, achievement });
+    // Non-admins may only update their own target.
+    const ownerScope = req.user!.role === 'admin' ? undefined : req.user!.userId;
+    const result = await updateTarget(req.params.id, req.user!.tenantId, { target, achievement }, ownerScope);
     if (!result) { res.status(404).json({ error: 'Not found' }); return; }
     res.json(result);
   } catch (err) {

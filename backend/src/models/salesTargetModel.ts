@@ -50,16 +50,21 @@ export async function upsertTarget(data: {
   return mapTarget(result.rows[0]);
 }
 
+// ownerId = undefined → admin, can update any target in the tenant
+// ownerId = userId    → non-admin, can only update their own target
 export async function updateTarget(id: string, tenantId: string, data: {
   target?:      number;
   achievement?: number;
-}) {
+}, ownerId?: string) {
+  const ownerFilter = ownerId ? 'AND owner_id = $5' : '';
+  const params: unknown[] = [data.target, data.achievement, id, tenantId];
+  if (ownerId) params.push(ownerId);
   const result = await query(
     `UPDATE sales_targets SET
        target      = COALESCE($1, target),
        achievement = COALESCE($2, achievement)
-     WHERE id = $3 AND tenant_id = $4 RETURNING *`,
-    [data.target, data.achievement, id, tenantId]
+     WHERE id = $3 AND tenant_id = $4 ${ownerFilter} RETURNING *`,
+    params
   );
   return result.rows[0] ? mapTarget(result.rows[0]) : null;
 }

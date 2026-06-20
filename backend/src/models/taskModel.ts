@@ -48,6 +48,8 @@ export async function createTask(data: {
   return mapTask(result.rows[0]);
 }
 
+// ownerId = undefined → admin, can update any task in the tenant
+// ownerId = userId    → non-admin, can only update their own task
 export async function updateTask(id: string, tenantId: string, data: {
   title?:       string;
   description?: string;
@@ -55,7 +57,10 @@ export async function updateTask(id: string, tenantId: string, data: {
   dueDate?:     string;
   status?:      string;
   priority?:    string;
-}) {
+}, ownerId?: string) {
+  const ownerFilter = ownerId ? 'AND owner_id = $9' : '';
+  const params: unknown[] = [data.title, data.description, data.type, data.dueDate, data.status, data.priority, id, tenantId];
+  if (ownerId) params.push(ownerId);
   const result = await query(
     `UPDATE tasks SET
        title       = COALESCE($1, title),
@@ -65,14 +70,19 @@ export async function updateTask(id: string, tenantId: string, data: {
        status      = COALESCE($5, status),
        priority    = COALESCE($6, priority),
        completed_at = CASE WHEN $5 = 'completed' THEN NOW() ELSE completed_at END
-     WHERE id = $7 AND tenant_id = $8 RETURNING *`,
-    [data.title, data.description, data.type, data.dueDate, data.status, data.priority, id, tenantId]
+     WHERE id = $7 AND tenant_id = $8 ${ownerFilter} RETURNING *`,
+    params
   );
   return result.rows[0] ? mapTask(result.rows[0]) : null;
 }
 
-export async function removeTask(id: string, tenantId: string) {
-  await query('DELETE FROM tasks WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+// Returns true if a row was deleted. ownerId scopes deletion to the owner for non-admins.
+export async function removeTask(id: string, tenantId: string, ownerId?: string): Promise<boolean> {
+  const ownerFilter = ownerId ? 'AND owner_id = $3' : '';
+  const params: string[] = [id, tenantId];
+  if (ownerId) params.push(ownerId);
+  const result = await query(`DELETE FROM tasks WHERE id = $1 AND tenant_id = $2 ${ownerFilter}`, params);
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function findTasksDueToday(): Promise<Array<{

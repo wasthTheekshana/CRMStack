@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { findAllActivities, findActivitiesByLead, createActivity } from '../models/activityModel';
+import { getLeadOwnerId } from '../models/leadModel';
 
 const MANUAL_TYPES: readonly string[] = ['note', 'call', 'email', 'meeting'];
 
@@ -15,6 +16,11 @@ export async function listActivities(req: Request, res: Response) {
 
 export async function listActivitiesByLead(req: Request, res: Response) {
   try {
+    // Sales users may only see activities for leads they own; admins see all.
+    if (req.user!.role === 'sales') {
+      const ownerId = await getLeadOwnerId(req.params.leadId, req.user!.tenantId);
+      if (ownerId !== req.user!.userId) { res.status(403).json({ error: 'Access denied' }); return; }
+    }
     const activities = await findActivitiesByLead(req.params.leadId, req.user!.tenantId);
     res.json(activities);
   } catch (err) {

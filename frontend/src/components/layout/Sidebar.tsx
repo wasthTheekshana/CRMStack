@@ -168,7 +168,17 @@ export function Sidebar({ collapsed, onToggle, isMobile, onCloseMobile }: Sideba
               onError={(e) => {
                 const target = e.currentTarget
                 target.style.display = 'none'
-                target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-lg bg-primary flex items-center justify-center"><span class="text-lg font-bold text-white">${companyLetter}</span></div>`
+                const parent = target.parentElement!
+                // Build the fallback badge with DOM APIs (textContent) instead of
+                // innerHTML so the company name can never inject markup.
+                parent.replaceChildren()
+                const badge = document.createElement('div')
+                badge.className = 'h-8 w-8 rounded-lg bg-primary flex items-center justify-center'
+                const letter = document.createElement('span')
+                letter.className = 'text-lg font-bold text-white'
+                letter.textContent = companyLetter
+                badge.appendChild(letter)
+                parent.appendChild(badge)
               }}
             />
           </div>

@@ -170,7 +170,7 @@ export async function forgotPassword(req: Request, res: Response) {
     if (!user) { res.json(SUCCESS); return; }
 
     const tenant = await findTenantById(user.tenant_id);
-    if (!tenant || tenant.status !== 'active') { res.json(SUCCESS); return; }
+    if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) { res.json(SUCCESS); return; }
 
     const baseUrl = process.env.APP_BASE_URL;
     if (!baseUrl) {
@@ -216,7 +216,7 @@ export async function verifyResetToken(req: Request, res: Response) {
     const tenant = userResult.rows[0]?.tenant_id
       ? await findTenantById(userResult.rows[0].tenant_id)
       : null;
-    if (!tenant || tenant.status !== 'active') {
+    if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
       res.status(400).json({ error: 'Invalid or expired reset link' });
       return;
     }
@@ -254,7 +254,7 @@ export async function resetPassword(req: Request, res: Response) {
     const tenant = userResult.rows[0]?.tenant_id
       ? await findTenantById(userResult.rows[0].tenant_id)
       : null;
-    if (!tenant || tenant.status !== 'active') {
+    if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
       res.status(400).json({ error: 'Invalid or expired reset link' });
       return;
     }

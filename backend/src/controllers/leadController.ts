@@ -469,6 +469,13 @@ export async function bulkUpdateLeads(req: Request, res: Response) {
     return
   }
 
+  // Reassigning ownership is an admin-only action (mirrors PATCH /leads/:id/owner).
+  // Non-admins must not be able to hand their leads to other users via bulk update.
+  if (update.ownerId != null && req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'Only admins can reassign lead ownership' })
+    return
+  }
+
   try {
     const { tenantId, userId, role } = req.user!
 

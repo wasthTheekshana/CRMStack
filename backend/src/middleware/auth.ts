@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getTenantStatus } from '../models/tenantModel';
+import { isUserActive } from '../models/userModel';
 
 export interface AuthPayload {
   userId:   string;
@@ -47,6 +48,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         error: 'TENANT_SUSPENDED',
         message: 'Your account has been suspended. Please contact support.',
       });
+      return;
+    }
+
+    // Enforce account deactivation immediately: a deactivated user must not be
+    // able to keep using a JWT that was issued before they were deactivated.
+    if (!(await isUserActive(payload.userId))) {
+      res.status(403).json({ error: 'ACCOUNT_DEACTIVATED', message: 'Your account has been deactivated.' });
       return;
     }
 

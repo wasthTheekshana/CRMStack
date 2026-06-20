@@ -34,6 +34,13 @@ export async function findSalesUsers(tenantId: string) {
   return result.rows.map(mapUser);
 }
 
+// Lightweight check used by requireAuth so a deactivated user's existing JWT
+// stops working immediately instead of remaining valid until it expires.
+export async function isUserActive(id: string): Promise<boolean> {
+  const result = await query('SELECT is_active FROM users WHERE id = $1', [id]);
+  return result.rows[0]?.is_active === true;
+}
+
 export async function findUserById(id: string) {
   const result = await query(
     'SELECT id, email, username, display_name, role, is_active, tenant_id, created_at FROM users WHERE id = $1',

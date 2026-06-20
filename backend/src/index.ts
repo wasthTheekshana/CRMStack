@@ -36,11 +36,14 @@ const tenantSubdomainRe = baseDomain
   ? new RegExp(`^https://[a-z0-9-]+\\.${baseDomain.replace(/\./g, '\\.')}$`)
   : null;
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const corsOrigin: cors.CorsOptions['origin'] = (origin, callback) => {
   if (!origin) return callback(null, true); // server-to-server / curl
   if (staticOrigins.includes(origin)) return callback(null, true);
   if (tenantSubdomainRe?.test(origin)) return callback(null, true);
-  if (/^https?:\/\/([a-z0-9-]+\.)?localhost(:\d+)?$/.test(origin)) {
+  // Allow localhost origins for local development only — never in production.
+  if (!isProd && /^https?:\/\/([a-z0-9-]+\.)?localhost(:\d+)?$/.test(origin)) {
     return callback(null, true);
   }
   callback(new Error('Not allowed by CORS'));

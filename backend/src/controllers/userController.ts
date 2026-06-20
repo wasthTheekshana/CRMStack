@@ -51,6 +51,10 @@ export async function createUserHandler(req: Request, res: Response) {
     res.status(400).json({ error: 'email, username, displayName, password required' });
     return;
   }
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
+    return;
+  }
   // Hash before acquiring the DB lock — bcrypt is CPU-bound, not DB-bound
   const passwordHash = await bcrypt.hash(password, 10);
   const client = await pool.connect();
@@ -119,6 +123,10 @@ export async function createUserHandler(req: Request, res: Response) {
 
 export async function updateUserHandler(req: Request, res: Response) {
   const { displayName, email, role, isActive, password } = req.body;
+  if (password !== undefined && (typeof password !== 'string' || password.length < 8 || password.length > 128)) {
+    res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
+    return;
+  }
   // Hash before acquiring the DB lock — bcrypt is CPU-bound, not DB-bound
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
   const client = await pool.connect();
