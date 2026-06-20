@@ -1,4 +1,11 @@
 services:
+  # Local development only: publish Postgres to the host (bound to loopback so
+  # it is not reachable from outside this machine). Production uses
+  # docker-compose.prod.yml instead of this file, so the DB stays internal.
+  postgres:
+    ports:
+      - '127.0.0.1:5432:5432'
+
   frontend:
     build:
       context: ./frontend
@@ -10,7 +17,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:80/ || exit 1']
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:80/ || exit 1']
       interval: 15s
       timeout: 5s
       retries: 3

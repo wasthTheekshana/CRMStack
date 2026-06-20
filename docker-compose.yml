@@ -12,8 +12,10 @@ services:
       POSTGRES_DB: dokcrm
       POSTGRES_USER: dokcrm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
-    ports:
-      - '5432:5432'
+    # No host port is published here: other containers reach the DB over the
+    # internal Docker network (host "postgres"). The port is published only in
+    # docker-compose.override.yml for local development, so production never
+    # exposes the database to the host network.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
