@@ -33,8 +33,8 @@ export function ResetPasswordPage() {
       setError('Passwords do not match')
       return
     }
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
     setIsSubmitting(true)
@@ -93,7 +93,7 @@ export function ResetPasswordPage() {
                   <Input
                     id="newPassword"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Min 6 characters"
+                    placeholder="Min 8 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     disabled={isSubmitting}

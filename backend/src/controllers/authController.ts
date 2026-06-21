@@ -239,8 +239,8 @@ export async function resetPassword(req: Request, res: Response) {
     res.status(400).json({ error: 'Token and newPassword required' });
     return;
   }
-  if (newPassword.length < 6) {
-    res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: 'Password must be at least 8 characters' });
     return;
   }
   if (newPassword.length > 128) {

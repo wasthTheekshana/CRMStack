@@ -77,8 +77,8 @@ export function ProfilePage() {
       return
     }
 
-    if (newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters')
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters')
       return
     }
 
@@ -293,7 +293,7 @@ export function ProfilePage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Must be at least 6 characters
+                  Must be at least 8 characters
                 </p>
               </div>
 

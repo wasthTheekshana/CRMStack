@@ -127,8 +127,8 @@ export function TeamManagement() {
       return
     }
 
-    if (newUserForm.password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (newUserForm.password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
 
@@ -183,8 +183,8 @@ export function TeamManagement() {
       setError('Email is required')
       return
     }
-    if (editForm.password && editForm.password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (editForm.password && editForm.password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
 
@@ -532,7 +532,7 @@ export function TeamManagement() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Min 6 characters"
+                placeholder="Min 8 characters"
                 value={newUserForm.password}
                 onChange={(e) =>
                   setNewUserForm({ ...newUserForm, password: e.target.value })
@@ -604,7 +604,7 @@ export function TeamManagement() {
                 value={editForm.password}
                 onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">Min 6 characters if changing</p>
+              <p className="text-xs text-muted-foreground">Min 8 characters if changing</p>
             </div>
           </div>
           <DialogFooter>
