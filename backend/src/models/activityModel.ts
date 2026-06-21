@@ -48,6 +48,8 @@ export async function findAllActivities(
   const limit = Math.min(Math.max(filters.limit ?? 200, 1), 500);
   params.push(limit);
   const limitPlaceholder = `$${i}`;
+  // NOTE: `i` is intentionally not incremented further — it is unused after this point.
+  // If you add another clause below, increment `i` when pushing its placeholder.
 
   const result = await query(
     `SELECT a.*, u.display_name AS owner_name

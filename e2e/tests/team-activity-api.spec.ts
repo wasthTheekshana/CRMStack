@@ -44,6 +44,7 @@ test.describe('Team activity API filters', () => {
     // Sales passing admin's ownerId → still only own activities (IDOR guard)
     const sneakRes = await apiFetch(`/api/activities?ownerId=${dokAdmin.id}`, salesToken, sub)
     const sneak = await sneakRes.json()
+    expect(sneak.length).toBeGreaterThan(0)
     expect(sneak.every((a: { ownerId: string }) => a.ownerId === dokSales.id)).toBeTruthy()
   })
 

@@ -26,6 +26,9 @@ export async function listActivities(req: Request, res: Response) {
     if (endDate && isNaN(Date.parse(endDate))) {
       res.status(400).json({ error: 'Invalid endDate' }); return;
     }
+    // A date-only endDate (YYYY-MM-DD) should include the whole day, not stop at midnight.
+    const normalizedEndDate =
+      endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? `${endDate}T23:59:59.999Z` : endDate;
     let parsedLimit: number | undefined;
     if (limit !== undefined) {
       parsedLimit = parseInt(limit, 10);
@@ -43,7 +46,7 @@ export async function listActivities(req: Request, res: Response) {
         // Non-admins must never filter by another member; force undefined so the
         // model's own-owner restriction applies.
         ownerId: isAdmin ? ownerId : undefined,
-        type, leadId, startDate, endDate, limit: parsedLimit,
+        type, leadId, startDate, endDate: normalizedEndDate, limit: parsedLimit,
       }
     );
     res.json(activities);
