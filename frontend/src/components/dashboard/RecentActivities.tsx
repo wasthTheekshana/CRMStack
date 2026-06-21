@@ -9,10 +9,11 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatRelativeTime } from '@/lib/utils/formatters'
-import { Activity } from '@/types'
+import { Activity, ActivityType } from '@/types'
 import { getActivities } from '@/lib/api/collections'
 import { useAuthStore, useIsAdmin } from '@/store/authStore'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
+import { cn } from '@/lib/utils/cn'
 
 const activityIcons = {
   note: MessageSquare,
@@ -30,18 +31,22 @@ const activityColors = {
   meeting: 'bg-pink-100 text-pink-600',
 }
 
-// Type sections, in display order.
-const TYPE_GROUPS: { type: keyof typeof activityIcons; label: string }[] = [
-  { type: 'call', label: 'Calls' },
-  { type: 'meeting', label: 'Meetings' },
-  { type: 'email', label: 'Emails' },
-  { type: 'note', label: 'Notes' },
-  { type: 'stage_change', label: 'Stage changes' },
+// Filter chips: "all" plus the manual activity types.
+const FILTERS: { value: 'all' | ActivityType; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'call', label: 'Calls' },
+  { value: 'meeting', label: 'Meetings' },
+  { value: 'email', label: 'Emails' },
+  { value: 'note', label: 'Notes' },
 ]
+
+const fullDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 
 export function RecentActivities() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | ActivityType>('all')
   const { user } = useAuthStore()
   const isAdmin = useIsAdmin()
 
@@ -62,13 +67,9 @@ export function RecentActivities() {
   // Refresh when the user returns to the tab/page so newly logged activities appear.
   useRefreshOnFocus(fetchActivities)
 
-  // Group the recent activities by type, preserving the section order above.
-  const sections = useMemo(
-    () =>
-      TYPE_GROUPS
-        .map((g) => ({ ...g, items: activities.filter((a) => a.type === g.type) }))
-        .filter((g) => g.items.length > 0),
-    [activities]
+  const visible = useMemo(
+    () => (filter === 'all' ? activities : activities.filter((a) => a.type === filter)),
+    [activities, filter]
   )
 
   return (
@@ -80,6 +81,24 @@ export function RecentActivities() {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Type filter chips */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                filter === f.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -92,30 +111,23 @@ export function RecentActivities() {
               </div>
             ))}
           </div>
-        ) : sections.length > 0 ? (
-          <div className="space-y-5">
-            {sections.map((section) => {
-              const Icon = activityIcons[section.type] || FileText
-              const colorClass = activityColors[section.type] || 'bg-gray-100 text-gray-600'
+        ) : visible.length > 0 ? (
+          <div className="space-y-4">
+            {visible.map((activity) => {
+              const Icon = activityIcons[activity.type] || FileText
+              const colorClass = activityColors[activity.type] || 'bg-gray-100 text-gray-600'
               return (
-                <div key={section.type}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">
-                    {section.label} ({section.items.length})
-                  </p>
-                  <div className="space-y-3">
-                    {section.items.map((activity) => (
-                      <div key={activity.id} className="flex gap-3">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{activity.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {activity.createdAt ? formatRelativeTime(activity.createdAt) : ''}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                <div key={activity.id} className="flex gap-3">
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{activity.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {activity.createdAt
+                        ? `${fullDate(activity.createdAt)} · ${formatRelativeTime(activity.createdAt)}`
+                        : ''}
+                    </p>
                   </div>
                 </div>
               )
@@ -123,7 +135,7 @@ export function RecentActivities() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No recent activities
+            {filter === 'all' ? 'No recent activities' : `No ${filter}s`}
           </p>
         )}
       </CardContent>
