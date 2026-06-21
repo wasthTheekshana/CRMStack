@@ -30,3 +30,9 @@ export const createActivity = (data: Omit<Activity, 'id' | 'createdAt'>) =>
     method: 'POST',
     body: JSON.stringify(data),
   });
+
+export const updateActivity = (id: string, data: { type?: string; description?: string }) =>
+  apiFetch<Activity>(`/api/activities/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });

@@ -97,3 +97,25 @@ export async function createActivity(data: {
   );
   return mapActivity(result.rows[0]);
 }
+
+// ownerId = undefined → admin, can edit any activity in the tenant
+// ownerId = userId    → non-admin, can only edit their own activity
+export async function updateActivity(
+  id: string,
+  tenantId: string,
+  data: { type?: string; description?: string },
+  ownerId?: string
+) {
+  const ownerFilter = ownerId ? 'AND owner_id = $5' : '';
+  const params: unknown[] = [data.type ?? null, data.description ?? null, id, tenantId];
+  if (ownerId) params.push(ownerId);
+  const result = await query(
+    `UPDATE activities SET
+       type        = COALESCE($1, type),
+       description = COALESCE($2, description)
+     WHERE id = $3 AND tenant_id = $4 ${ownerFilter}
+     RETURNING *`,
+    params
+  );
+  return result.rows[0] ? mapActivity(result.rows[0]) : null;
+}

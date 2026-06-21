@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Phone,
   Mail,
@@ -30,6 +30,15 @@ const activityColors = {
   meeting: 'bg-pink-100 text-pink-600',
 }
 
+// Type sections, in display order.
+const TYPE_GROUPS: { type: keyof typeof activityIcons; label: string }[] = [
+  { type: 'call', label: 'Calls' },
+  { type: 'meeting', label: 'Meetings' },
+  { type: 'email', label: 'Emails' },
+  { type: 'note', label: 'Notes' },
+  { type: 'stage_change', label: 'Stage changes' },
+]
+
 export function RecentActivities() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -40,8 +49,8 @@ export function RecentActivities() {
     if (!user) return
     try {
       const all = await getActivities()
-      const data = isAdmin ? all.slice(0, 5) : all.filter(a => a.ownerId === user.id).slice(0, 5)
-      setActivities(data)
+      const scoped = isAdmin ? all : all.filter(a => a.ownerId === user.id)
+      setActivities(scoped.slice(0, 20))
     } catch (error) {
       console.error('Error fetching activities:', error)
     } finally {
@@ -52,6 +61,15 @@ export function RecentActivities() {
   useEffect(() => { fetchActivities() }, [fetchActivities])
   // Refresh when the user returns to the tab/page so newly logged activities appear.
   useRefreshOnFocus(fetchActivities)
+
+  // Group the recent activities by type, preserving the section order above.
+  const sections = useMemo(
+    () =>
+      TYPE_GROUPS
+        .map((g) => ({ ...g, items: activities.filter((a) => a.type === g.type) }))
+        .filter((g) => g.items.length > 0),
+    [activities]
+  )
 
   return (
     <Card>
@@ -74,24 +92,30 @@ export function RecentActivities() {
               </div>
             ))}
           </div>
-        ) : activities.length > 0 ? (
-          <div className="space-y-4">
-            {activities.map((activity) => {
-              const Icon = activityIcons[activity.type] || FileText
-              const colorClass = activityColors[activity.type] || 'bg-gray-100 text-gray-600'
-
+        ) : sections.length > 0 ? (
+          <div className="space-y-5">
+            {sections.map((section) => {
+              const Icon = activityIcons[section.type] || FileText
+              const colorClass = activityColors[section.type] || 'bg-gray-100 text-gray-600'
               return (
-                <div key={activity.id} className="flex gap-3">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${colorClass}`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {activity.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatRelativeTime(activity.createdAt)}
-                    </p>
+                <div key={section.type}>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">
+                    {section.label} ({section.items.length})
+                  </p>
+                  <div className="space-y-3">
+                    {section.items.map((activity) => (
+                      <div key={activity.id} className="flex gap-3">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{activity.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.createdAt ? formatRelativeTime(activity.createdAt) : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )

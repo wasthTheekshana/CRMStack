@@ -23,13 +23,13 @@ const typeColors: Record<string, string> = {
   other: 'bg-gray-100 text-gray-600',
 }
 
-// Filter chips: "all" plus the actionable task types the rep cares about.
-const FILTERS: { value: 'all' | TaskType; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'call', label: 'Calls' },
-  { value: 'meeting', label: 'Meetings' },
-  { value: 'follow-up', label: 'Follow-ups' },
-  { value: 'email', label: 'Emails' },
+// Type sections, in display order.
+const TYPE_GROUPS: { type: TaskType; label: string }[] = [
+  { type: 'call', label: 'Calls' },
+  { type: 'meeting', label: 'Meetings' },
+  { type: 'follow-up', label: 'Follow-ups' },
+  { type: 'email', label: 'Emails' },
+  { type: 'other', label: 'Other' },
 ]
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -49,7 +49,6 @@ function dueBadge(dueDate: string): { label: string; className: string } {
 export function UpcomingTasks() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | TaskType>('all')
 
   const loadTasks = useCallback(() => {
     getTasks()
@@ -71,9 +70,13 @@ export function UpcomingTasks() {
     [tasks]
   )
 
-  const visible = useMemo(
-    () => (filter === 'all' ? pending : pending.filter((t) => t.type === filter)),
-    [pending, filter]
+  // Group pending tasks by type, preserving the section order above.
+  const sections = useMemo(
+    () =>
+      TYPE_GROUPS
+        .map((g) => ({ ...g, items: pending.filter((t) => t.type === g.type) }))
+        .filter((g) => g.items.length > 0),
+    [pending]
   )
 
   return (
@@ -88,24 +91,6 @@ export function UpcomingTasks() {
         </Link>
       </CardHeader>
       <CardContent>
-        {/* Type filter chips */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                filter === f.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -118,30 +103,39 @@ export function UpcomingTasks() {
               </div>
             ))}
           </div>
-        ) : visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            {filter === 'all' ? 'No upcoming tasks' : `No ${filter === 'follow-up' ? 'follow-ups' : filter + 's'} coming up`}
-          </p>
+        ) : sections.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No upcoming tasks</p>
         ) : (
-          <div className="space-y-4">
-            {visible.map((task) => {
-              const Icon = typeIcons[task.type] || FileText
-              const color = typeColors[task.type] || 'bg-gray-100 text-gray-600'
-              const badge = dueBadge(task.dueDate as string)
+          <div className="space-y-5">
+            {sections.map((section) => {
+              const Icon = typeIcons[section.type] || FileText
+              const color = typeColors[section.type] || 'bg-gray-100 text-gray-600'
               return (
-                <div key={task.id} className="flex gap-3 items-start">
-                  <div className={cn('h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0', color)}>
-                    <Icon className="h-5 w-5" />
+                <div key={section.type}>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">
+                    {section.label} ({section.items.length})
+                  </p>
+                  <div className="space-y-3">
+                    {section.items.map((task) => {
+                      const badge = dueBadge(task.dueDate as string)
+                      return (
+                        <div key={task.id} className="flex gap-3 items-start">
+                          <div className={cn('h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0', color)}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{task.title}</p>
+                            {task.description && (
+                              <p className="text-xs text-muted-foreground truncate">{task.description}</p>
+                            )}
+                          </div>
+                          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap', badge.className)}>
+                            {badge.label}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{task.title}</p>
-                    {task.description && (
-                      <p className="text-xs text-muted-foreground truncate">{task.description}</p>
-                    )}
-                  </div>
-                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap', badge.className)}>
-                    {badge.label}
-                  </span>
                 </div>
               )
             })}

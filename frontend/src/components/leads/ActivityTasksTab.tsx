@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Phone, Mail, Users, FileText, RefreshCw, Loader2, Trash2, CheckSquare } from 'lucide-react'
+import { Plus, Phone, Mail, Users, FileText, RefreshCw, Loader2, Trash2, CheckSquare, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getActivitiesByLead, createActivity } from '@/services/activityService'
-import { getTasksByLead, createTask, completeTask, deleteTask } from '@/services/taskService'
-import { useAuthStore } from '@/store/authStore'
+import { getActivitiesByLead, createActivity, updateActivity } from '@/services/activityService'
+import { getTasksByLead, createTask, completeTask, deleteTask, updateTask } from '@/services/taskService'
+import { useAuthStore, useIsAdmin } from '@/store/authStore'
 import type { Activity, Task, ActivityType, TaskType } from '@/models'
 
 const ACTIVITY_ICONS: Record<ActivityType, JSX.Element> = {
@@ -50,10 +50,26 @@ interface Props {
 
 export function ActivityTasksTab({ leadId }: Props) {
   const user = useAuthStore((state) => state.user)
+  const isAdmin = useIsAdmin()
 
   const [activities, setActivities] = useState<Activity[]>([])
   const [tasks,      setTasks]      = useState<Task[]>([])
   const [loading,    setLoading]    = useState(true)
+
+  // Edit state — tasks
+  const [editTaskId,      setEditTaskId]      = useState<string | null>(null)
+  const [editTaskTitle,   setEditTaskTitle]   = useState('')
+  const [editTaskType,    setEditTaskType]    = useState<TaskType>('follow-up')
+  const [editTaskDueDate, setEditTaskDueDate] = useState('')
+  const [savingEditTask,  setSavingEditTask]  = useState(false)
+
+  // Edit state — activities
+  const [editActId,          setEditActId]          = useState<string | null>(null)
+  const [editActType,        setEditActType]        = useState<ActivityType>('call')
+  const [editActDescription, setEditActDescription] = useState('')
+  const [savingEditAct,      setSavingEditAct]      = useState(false)
+
+  const canEdit = (ownerId: string) => isAdmin || ownerId === user?.id
 
   // Task form state
   const [showTaskForm,  setShowTaskForm]  = useState(false)
@@ -148,6 +164,58 @@ export function ActivityTasksTab({ leadId }: Props) {
     }
   }
 
+  function startEditTask(task: Task) {
+    setEditTaskId(task.id)
+    setEditTaskTitle(task.title)
+    setEditTaskType(task.type)
+    setEditTaskDueDate(typeof task.dueDate === 'string' ? task.dueDate.slice(0, 10) : '')
+  }
+
+  async function handleSaveTask(taskId: string) {
+    if (!editTaskTitle.trim() || !editTaskDueDate) return
+    setSavingEditTask(true)
+    try {
+      const updated = await updateTask(taskId, {
+        title: editTaskTitle.trim(),
+        type: editTaskType,
+        dueDate: editTaskDueDate,
+      })
+      setTasks(prev => prev
+        .map(t => t.id === taskId ? { ...t, ...updated } : t)
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()))
+      setEditTaskId(null)
+      toast.success('Task updated')
+    } catch {
+      toast.error('Failed to update task')
+    } finally {
+      setSavingEditTask(false)
+    }
+  }
+
+  function startEditActivity(act: Activity) {
+    setEditActId(act.id)
+    setEditActType(act.type as ActivityType)
+    setEditActDescription(act.description)
+  }
+
+  async function handleSaveActivity(actId: string) {
+    if (!editActDescription.trim()) return
+    setSavingEditAct(true)
+    try {
+      const updated = await updateActivity(actId, {
+        type: editActType,
+        description: editActDescription.trim(),
+      })
+      setActivities(prev => prev.map(a => a.id === actId ? { ...a, ...updated } : a))
+      setEditActId(null)
+      toast.success('Activity updated')
+    } catch {
+      toast.error('Failed to update activity')
+    } finally {
+      setSavingEditAct(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -220,6 +288,40 @@ export function ActivityTasksTab({ leadId }: Props) {
             <p className="text-xs text-muted-foreground py-2">No pending tasks.</p>
           )}
           {pendingTasks.map(task => (
+            editTaskId === task.id ? (
+              <div key={task.id} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                <Input
+                  placeholder="Task title"
+                  value={editTaskTitle}
+                  onChange={e => setEditTaskTitle(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveTask(task.id)}
+                />
+                <div className="flex gap-2">
+                  <Select value={editTaskType} onValueChange={v => setEditTaskType(v as TaskType)}>
+                    <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="follow-up">Follow-up</SelectItem>
+                      <SelectItem value="call">Call</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="meeting">Meeting</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="date"
+                    className="flex-1"
+                    value={editTaskDueDate}
+                    onChange={e => setEditTaskDueDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" variant="ghost" onClick={() => setEditTaskId(null)}>Cancel</Button>
+                  <Button size="sm" onClick={() => handleSaveTask(task.id)} disabled={savingEditTask || !editTaskTitle.trim() || !editTaskDueDate}>
+                    {savingEditTask ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <div
               key={task.id}
               className={`flex items-start gap-3 p-3 rounded-lg border ${
@@ -240,6 +342,15 @@ export function ActivityTasksTab({ leadId }: Props) {
                   {task.type} · Due {new Date(task.dueDate).toLocaleDateString()}
                 </p>
               </div>
+              {canEdit(task.ownerId) && (
+                <button
+                  onClick={() => startEditTask(task)}
+                  className="text-muted-foreground hover:text-primary flex-shrink-0"
+                  title="Edit task"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
               {task.ownerId === user?.id && (
                 <button
                   onClick={() => handleDeleteTask(task.id)}
@@ -250,6 +361,7 @@ export function ActivityTasksTab({ leadId }: Props) {
                 </button>
               )}
             </div>
+            )
           ))}
 
           {doneTasks.length > 0 && (
@@ -312,7 +424,32 @@ export function ActivityTasksTab({ leadId }: Props) {
         ) : (
           <div className="space-y-3">
             {activities.map(act => (
-              <div key={act.id} className="flex gap-3">
+              editActId === act.id ? (
+                <div key={act.id} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                  <Select value={editActType} onValueChange={v => setEditActType(v as ActivityType)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="call">Call</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="meeting">Meeting</SelectItem>
+                      <SelectItem value="note">Note</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    placeholder="What happened?"
+                    value={editActDescription}
+                    onChange={e => setEditActDescription(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="ghost" onClick={() => setEditActId(null)}>Cancel</Button>
+                    <Button size="sm" onClick={() => handleSaveActivity(act.id)} disabled={savingEditAct || !editActDescription.trim()}>
+                      {savingEditAct ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+              <div key={act.id} className="flex gap-3 group">
                 <div className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center ${ACTIVITY_COLORS[act.type as ActivityType]}`}>
                   {ACTIVITY_ICONS[act.type as ActivityType]}
                 </div>
@@ -324,7 +461,17 @@ export function ActivityTasksTab({ leadId }: Props) {
                     {act.createdAt ? timeAgo(act.createdAt) : ''}
                   </p>
                 </div>
+                {act.type !== 'stage_change' && canEdit(act.ownerId) && (
+                  <button
+                    onClick={() => startEditActivity(act)}
+                    className="text-muted-foreground hover:text-primary flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Edit activity"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
+              )
             ))}
           </div>
         )}

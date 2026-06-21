@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { findAllActivities, findActivitiesByLead, createActivity } from '../models/activityModel';
+import { findAllActivities, findActivitiesByLead, createActivity, updateActivity } from '../models/activityModel';
 import { getLeadOwnerId } from '../models/leadModel';
 
 const MANUAL_TYPES: readonly string[] = ['note', 'call', 'email', 'meeting'];
@@ -91,6 +91,29 @@ export async function createActivityHandler(req: Request, res: Response) {
       tenantId: req.user!.tenantId,
     });
     res.status(201).json(activity);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+export async function updateActivityHandler(req: Request, res: Response) {
+  const { type, description } = req.body;
+  if (type === undefined && description === undefined) {
+    res.status(400).json({ error: 'Nothing to update' });
+    return;
+  }
+  // Only manually-logged activity types are editable; auto stage_change is not.
+  if (type !== undefined && !MANUAL_TYPES.includes(type)) {
+    res.status(400).json({ error: 'Invalid activity type' });
+    return;
+  }
+  try {
+    // Non-admins may only edit their own activities.
+    const ownerScope = req.user!.role === 'admin' ? undefined : req.user!.userId;
+    const activity = await updateActivity(req.params.id, req.user!.tenantId, { type, description }, ownerScope);
+    if (!activity) { res.status(404).json({ error: 'Activity not found' }); return; }
+    res.json(activity);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
