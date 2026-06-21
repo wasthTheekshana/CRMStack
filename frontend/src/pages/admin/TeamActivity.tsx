@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { getActivities, type ActivityFilters } from '@/services/activityService'
 import { getAllUsers } from '@/services/userService'
 import { Activity, User } from '@/types'
@@ -20,9 +21,9 @@ const activityColors: Record<string, string> = {
   meeting: 'bg-pink-100 text-pink-600',
 }
 
-type DatePreset = 'all' | 'today' | 'week' | 'month'
+type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom'
 
-function presetRange(preset: DatePreset): { startDate?: string; endDate?: string } {
+function presetRange(preset: Exclude<DatePreset, 'custom'>): { startDate?: string; endDate?: string } {
   if (preset === 'all') return {}
   const now = new Date()
   const start = new Date(now)
@@ -40,6 +41,10 @@ export function TeamActivity() {
   const [memberId, setMemberId] = useState<string>('all')
   const [type, setType] = useState<string>('all')
   const [datePreset, setDatePreset] = useState<DatePreset>('month')
+  // Custom range (date-only YYYY-MM-DD). endDate is sent date-only; the API
+  // treats it as inclusive end-of-day.
+  const [customStart, setCustomStart] = useState<string>('')
+  const [customEnd, setCustomEnd] = useState<string>('')
 
   useEffect(() => {
     getAllUsers().then(setMembers).catch(err => console.error('Failed to load members', err))
@@ -47,16 +52,22 @@ export function TeamActivity() {
 
   useEffect(() => {
     setIsLoading(true)
+    const dateRange = datePreset === 'custom'
+      ? {
+          ...(customStart && { startDate: new Date(customStart).toISOString() }),
+          ...(customEnd && { endDate: customEnd }),
+        }
+      : presetRange(datePreset)
     const filters: ActivityFilters = {
       ...(memberId !== 'all' && { ownerId: memberId }),
       ...(type !== 'all' && { type }),
-      ...presetRange(datePreset),
+      ...dateRange,
     }
     getActivities(filters)
       .then(setActivities)
       .catch(err => console.error('Failed to load activities', err))
       .finally(() => setIsLoading(false))
-  }, [memberId, type, datePreset])
+  }, [memberId, type, datePreset, customStart, customEnd])
 
   const grouped = useMemo(() => {
     const byDay: Record<string, Activity[]> = {}
@@ -104,8 +115,31 @@ export function TeamActivity() {
             <SelectItem value="week">Last 7 days</SelectItem>
             <SelectItem value="month">Last 30 days</SelectItem>
             <SelectItem value="all">All time</SelectItem>
+            <SelectItem value="custom">Custom range</SelectItem>
           </SelectContent>
         </Select>
+
+        {datePreset === 'custom' && (
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              className="w-40"
+              value={customStart}
+              max={customEnd || undefined}
+              onChange={(e) => setCustomStart(e.target.value)}
+              aria-label="From date"
+            />
+            <span className="text-muted-foreground text-sm">to</span>
+            <Input
+              type="date"
+              className="w-40"
+              value={customEnd}
+              min={customStart || undefined}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              aria-label="To date"
+            />
+          </div>
+        )}
       </div>
 
       <Card>

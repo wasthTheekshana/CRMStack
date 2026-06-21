@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Phone, Mail, Calendar, ArrowRight, FileText, ListTodo } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getTasks } from '@/services/taskService'
 import { Task, TaskType } from '@/types'
 import { cn } from '@/lib/utils/cn'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 
 const typeIcons: Record<string, typeof Phone> = {
   call: Phone,
@@ -50,12 +51,16 @@ export function UpcomingTasks() {
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | TaskType>('all')
 
-  useEffect(() => {
+  const loadTasks = useCallback(() => {
     getTasks()
       .then(setTasks)
       .catch((err) => console.error('Failed to load tasks', err))
       .finally(() => setIsLoading(false))
   }, [])
+
+  useEffect(() => { loadTasks() }, [loadTasks])
+  // Refresh when the user returns to the tab/page so newly added tasks appear.
+  useRefreshOnFocus(loadTasks)
 
   // Pending (not completed) tasks, soonest due first; overdue surfaces at the top.
   const pending = useMemo(

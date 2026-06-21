@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Phone,
   Mail,
@@ -12,6 +12,7 @@ import { formatRelativeTime } from '@/lib/utils/formatters'
 import { Activity } from '@/types'
 import { getActivities } from '@/lib/api/collections'
 import { useAuthStore, useIsAdmin } from '@/store/authStore'
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 
 const activityIcons = {
   note: MessageSquare,
@@ -35,23 +36,22 @@ export function RecentActivities() {
   const { user } = useAuthStore()
   const isAdmin = useIsAdmin()
 
-  useEffect(() => {
-    const fetchActivities = async () => {
-      if (!user) return
-
-      try {
-        const all = await getActivities()
-        const data = isAdmin ? all.slice(0, 5) : all.filter(a => a.ownerId === user.id).slice(0, 5)
-        setActivities(data)
-      } catch (error) {
-        console.error('Error fetching activities:', error)
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchActivities = useCallback(async () => {
+    if (!user) return
+    try {
+      const all = await getActivities()
+      const data = isAdmin ? all.slice(0, 5) : all.filter(a => a.ownerId === user.id).slice(0, 5)
+      setActivities(data)
+    } catch (error) {
+      console.error('Error fetching activities:', error)
+    } finally {
+      setIsLoading(false)
     }
-
-    fetchActivities()
   }, [user, isAdmin])
+
+  useEffect(() => { fetchActivities() }, [fetchActivities])
+  // Refresh when the user returns to the tab/page so newly logged activities appear.
+  useRefreshOnFocus(fetchActivities)
 
   return (
     <Card>
