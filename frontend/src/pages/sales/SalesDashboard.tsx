@@ -9,6 +9,7 @@ import {
 import { KPICard } from '@/components/dashboard/KPICard'
 import { TopCustomers } from '@/components/dashboard/TopCustomers'
 import { RecentActivities } from '@/components/dashboard/RecentActivities'
+import { UpcomingTasks } from '@/components/dashboard/UpcomingTasks'
 import { PipelineChart } from '@/components/charts/PipelineChart'
 import { SolutionPieChart } from '@/components/charts/SolutionPieChart'
 import { BubbleChart } from '@/components/charts/BubbleChart'
@@ -80,6 +81,9 @@ export function SalesDashboard() {
           className="col-span-2 md:col-span-1"
         />
       </div>
+
+      {/* Quick access: upcoming/pending tasks */}
+      <UpcomingTasks />
 
       {/* Charts Row 1 */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
