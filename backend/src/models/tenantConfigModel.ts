@@ -15,12 +15,43 @@ export interface SolutionConfig {
   name: string;
 }
 
-export interface CustomFieldConfig {
-  id:       string;
-  name:     string;
-  type:     'text' | 'number' | 'select' | 'date' | 'checkbox';
-  required: boolean;
-  options:  string[];
+export interface FieldConfig {
+  id:         string;
+  name:       string;
+  type:       'text' | 'number' | 'select' | 'date' | 'checkbox' | 'formula';
+  required:   boolean;
+  options:    string[];
+  group?:     string;
+  order:      number;
+  formula?:   string;
+  precision?: number;
+  prefix?:    string;
+  suffix?:    string;
+}
+
+// Keep the old name as an alias so existing imports don't break during transition
+export type CustomFieldConfig = FieldConfig;
+
+export interface FieldGroup {
+  id:         string;
+  name:       string;
+  order:      number;
+  collapsed?: boolean;
+}
+
+export interface DashboardWidget {
+  id:              string;
+  name:            string;
+  type:            'sum' | 'average' | 'count' | 'min' | 'max' | 'group_by';
+  field_id:        string;
+  group_by_field?: string;
+  chart_type:      'number' | 'bar' | 'pie' | 'table';
+  order:           number;
+  role:            'admin' | 'sales' | 'both';
+}
+
+export interface CoreFieldVisibility {
+  probability?: boolean;
 }
 
 export interface BrandingConfig {
@@ -31,13 +62,16 @@ export interface BrandingConfig {
 }
 
 export interface TenantConfig {
-  tenantId:      string;
-  salesStages:   SalesStageConfig[];
-  solutions:     SolutionConfig[];
-  customFields:  CustomFieldConfig[];
-  visibleFields: Record<string, boolean>;
-  branding:      BrandingConfig;
-  updatedAt:     Date | null;
+  tenantId:             string;
+  salesStages:          SalesStageConfig[];
+  solutions:            SolutionConfig[];
+  customFields:         FieldConfig[];
+  visibleFields:        Record<string, boolean>;  // deprecated, kept for migration
+  fieldGroups:          FieldGroup[];
+  dashboardWidgets:     DashboardWidget[];
+  coreFieldVisibility:  CoreFieldVisibility;
+  branding:             BrandingConfig;
+  updatedAt:            Date | null;
 }
 
 // ─── Default config (used when no config row exists yet) ─────────────────────
@@ -61,13 +95,16 @@ export const DEFAULT_SOLUTIONS: SolutionConfig[] = [
 
 // ─── Row → Client mapper ──────────────────────────────────────────────────────
 export const mapConfig = (row: Record<string, unknown>): TenantConfig => ({
-  tenantId:      row.tenant_id as string,
-  salesStages:   (row.sales_stages  as SalesStageConfig[])          || DEFAULT_STAGES,
-  solutions:     (row.solutions     as SolutionConfig[])            || DEFAULT_SOLUTIONS,
-  customFields:  (row.custom_fields as CustomFieldConfig[])         || [],
-  visibleFields: (row.visible_fields as Record<string, boolean>)    || {},
-  branding:      (row.branding      as BrandingConfig)              || {},
-  updatedAt:     row.updated_at as Date | null,
+  tenantId:            row.tenant_id as string,
+  salesStages:         (row.sales_stages  as SalesStageConfig[])          || DEFAULT_STAGES,
+  solutions:           (row.solutions     as SolutionConfig[])            || DEFAULT_SOLUTIONS,
+  customFields:        (row.custom_fields as FieldConfig[])               || [],
+  visibleFields:       (row.visible_fields as Record<string, boolean>)    || {},
+  fieldGroups:         (row.field_groups as FieldGroup[])                  || [],
+  dashboardWidgets:    (row.dashboard_widgets as DashboardWidget[])       || [],
+  coreFieldVisibility: (row.core_field_visibility as CoreFieldVisibility) || {},
+  branding:            (row.branding      as BrandingConfig)              || {},
+  updatedAt:           row.updated_at as Date | null,
 });
 
 // ─── Query functions ──────────────────────────────────────────────────────────
@@ -80,37 +117,49 @@ export async function findConfigByTenantId(tenantId: string): Promise<TenantConf
 }
 
 export async function upsertConfig(tenantId: string, data: {
-  salesStages?:   SalesStageConfig[];
-  solutions?:     SolutionConfig[];
-  customFields?:  CustomFieldConfig[];
-  visibleFields?: Record<string, boolean>;
-  branding?:      BrandingConfig;
+  salesStages?:         SalesStageConfig[];
+  solutions?:           SolutionConfig[];
+  customFields?:        FieldConfig[];
+  visibleFields?:       Record<string, boolean>;
+  fieldGroups?:         FieldGroup[];
+  dashboardWidgets?:    DashboardWidget[];
+  coreFieldVisibility?: CoreFieldVisibility;
+  branding?:            BrandingConfig;
 }): Promise<TenantConfig> {
   const result = await query(
-    `INSERT INTO tenant_configs (tenant_id, sales_stages, solutions, custom_fields, visible_fields, branding)
+    `INSERT INTO tenant_configs (tenant_id, sales_stages, solutions, custom_fields, visible_fields, field_groups, dashboard_widgets, core_field_visibility, branding)
      VALUES (
        $1,
        COALESCE($2::jsonb, '[]'::jsonb),
        COALESCE($3::jsonb, '[]'::jsonb),
        COALESCE($4::jsonb, '[]'::jsonb),
        COALESCE($5::jsonb, '{}'::jsonb),
-       COALESCE($6::jsonb, '{}'::jsonb)
+       COALESCE($6::jsonb, '[]'::jsonb),
+       COALESCE($7::jsonb, '[]'::jsonb),
+       COALESCE($8::jsonb, '{}'::jsonb),
+       COALESCE($9::jsonb, '{}'::jsonb)
      )
      ON CONFLICT (tenant_id) DO UPDATE SET
-       sales_stages   = COALESCE($2::jsonb, tenant_configs.sales_stages),
-       solutions      = COALESCE($3::jsonb, tenant_configs.solutions),
-       custom_fields  = COALESCE($4::jsonb, tenant_configs.custom_fields),
-       visible_fields = COALESCE($5::jsonb, tenant_configs.visible_fields),
-       branding       = COALESCE($6::jsonb, tenant_configs.branding),
-       updated_at     = NOW()
+       sales_stages          = COALESCE($2::jsonb, tenant_configs.sales_stages),
+       solutions             = COALESCE($3::jsonb, tenant_configs.solutions),
+       custom_fields         = COALESCE($4::jsonb, tenant_configs.custom_fields),
+       visible_fields        = COALESCE($5::jsonb, tenant_configs.visible_fields),
+       field_groups           = COALESCE($6::jsonb, tenant_configs.field_groups),
+       dashboard_widgets      = COALESCE($7::jsonb, tenant_configs.dashboard_widgets),
+       core_field_visibility  = COALESCE($8::jsonb, tenant_configs.core_field_visibility),
+       branding              = COALESCE($9::jsonb, tenant_configs.branding),
+       updated_at            = NOW()
      RETURNING *`,
     [
       tenantId,
-      data.salesStages   != null ? JSON.stringify(data.salesStages)   : null,
-      data.solutions     != null ? JSON.stringify(data.solutions)     : null,
-      data.customFields  != null ? JSON.stringify(data.customFields)  : null,
-      data.visibleFields != null ? JSON.stringify(data.visibleFields) : null,
-      data.branding      != null ? JSON.stringify(data.branding)      : null,
+      data.salesStages          != null ? JSON.stringify(data.salesStages)         : null,
+      data.solutions            != null ? JSON.stringify(data.solutions)           : null,
+      data.customFields         != null ? JSON.stringify(data.customFields)        : null,
+      data.visibleFields        != null ? JSON.stringify(data.visibleFields)       : null,
+      data.fieldGroups          != null ? JSON.stringify(data.fieldGroups)         : null,
+      data.dashboardWidgets     != null ? JSON.stringify(data.dashboardWidgets)    : null,
+      data.coreFieldVisibility  != null ? JSON.stringify(data.coreFieldVisibility) : null,
+      data.branding             != null ? JSON.stringify(data.branding)            : null,
     ]
   );
   return mapConfig(result.rows[0]);

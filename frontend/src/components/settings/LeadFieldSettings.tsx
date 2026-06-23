@@ -36,7 +36,7 @@ function generateId() {
 }
 
 function blankField(): CustomFieldConfig {
-  return { id: generateId(), name: '', type: 'text', required: false, options: [] }
+  return { id: generateId(), name: '', type: 'text', required: false, options: [], order: 0 }
 }
 
 export function LeadFieldSettings({

@@ -40,12 +40,8 @@ export interface Lead {
   contactName?: string
   contactNumber?: string
   salesStage: SalesStage
-  imageCount: number
-  boxCount: number
   estimatedRevenue: number
   probability: number
-  remarks: string
-  hoUpdate: string
   ownerId: string
   ownerEmail: string
   tenantId?: string

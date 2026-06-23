@@ -14,12 +14,42 @@ export interface SolutionConfig {
   name: string
 }
 
-export interface CustomFieldConfig {
-  id:       string
-  name:     string
-  type:     'text' | 'number' | 'select' | 'date' | 'checkbox'
-  required: boolean
-  options:  string[]
+export interface FieldConfig {
+  id:         string
+  name:       string
+  type:       'text' | 'number' | 'select' | 'date' | 'checkbox' | 'formula'
+  required:   boolean
+  options:    string[]
+  group?:     string
+  order:      number
+  formula?:   string
+  precision?: number
+  prefix?:    string
+  suffix?:    string
+}
+
+export type CustomFieldConfig = FieldConfig
+
+export interface FieldGroup {
+  id:         string
+  name:       string
+  order:      number
+  collapsed?: boolean
+}
+
+export interface DashboardWidget {
+  id:              string
+  name:            string
+  type:            'sum' | 'average' | 'count' | 'min' | 'max' | 'group_by'
+  field_id:        string
+  group_by_field?: string
+  chart_type:      'number' | 'bar' | 'pie' | 'table'
+  order:           number
+  role:            'admin' | 'sales' | 'both'
+}
+
+export interface CoreFieldVisibility {
+  probability?: boolean
 }
 
 export interface BrandingConfig {
@@ -30,12 +60,15 @@ export interface BrandingConfig {
 }
 
 export interface TenantConfig {
-  tenantId:      string
-  salesStages:   SalesStageConfig[]
-  solutions:     SolutionConfig[]
-  customFields:  CustomFieldConfig[]
-  visibleFields: Record<string, boolean>
-  branding:      BrandingConfig
+  tenantId:             string
+  salesStages:          SalesStageConfig[]
+  solutions:            SolutionConfig[]
+  customFields:         FieldConfig[]
+  visibleFields:        Record<string, boolean>
+  fieldGroups:          FieldGroup[]
+  dashboardWidgets:     DashboardWidget[]
+  coreFieldVisibility:  CoreFieldVisibility
+  branding:             BrandingConfig
 }
 
 export async function fetchTenantConfig(): Promise<TenantConfig> {
