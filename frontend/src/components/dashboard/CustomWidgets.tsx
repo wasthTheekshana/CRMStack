@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { apiFetch } from '@/config/api'
 import { formatCompactNumber } from '@/lib/utils/formatters'
+import { useCustomFields } from '@/store/tenantStore'
 
 interface WidgetData {
   id: string
@@ -15,6 +16,15 @@ interface WidgetData {
 const COLORS = ['#3B82F6', '#22C55E', '#F97316', '#8B5CF6', '#EC4899', '#EAB308', '#06B6D4', '#F43F5E']
 
 export function CustomWidgets() {
+  const customFields = useCustomFields()
+  const getFieldPrefix = (fieldId: string) =>
+    customFields.find(f => f.id === fieldId)?.prefix ?? ''
+  const getFieldSuffix = (fieldId: string) =>
+    customFields.find(f => f.id === fieldId)?.suffix ?? ''
+
+  // Helpers available for data formatting in widget rendering
+  void [getFieldPrefix, getFieldSuffix]
+
   const [widgets, setWidgets] = useState<WidgetData[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -79,7 +89,7 @@ export function CustomWidgets() {
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
-                      label={({ group }) => group}
+                      label={({ name }: { name: string }) => name}
                     >
                       {widget.data.map((_, i) => (
                         <Cell key={i} fill={COLORS[i % COLORS.length]} />
