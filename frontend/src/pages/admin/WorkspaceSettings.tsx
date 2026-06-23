@@ -23,6 +23,8 @@ import {
   SalesStageConfig,
   SolutionConfig,
   CustomFieldConfig,
+  FieldGroup,
+  CoreFieldVisibility,
   BrandingConfig,
 } from '@/store/tenantStore'
 
@@ -37,7 +39,8 @@ export function WorkspaceSettings() {
   const [stages,        setStages]        = useState<SalesStageConfig[]>([])
   const [solutions,     setSolutions]     = useState<SolutionConfig[]>([])
   const [customFields,  setCustomFields]  = useState<CustomFieldConfig[]>([])
-  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({})
+  const [fieldGroups,   setFieldGroups]   = useState<FieldGroup[]>([])
+  const [coreFieldVis,  setCoreFieldVis]  = useState<CoreFieldVisibility>({})
   const [branding,      setBranding]      = useState<BrandingConfig>({})
 
   // Initialise local state from loaded config
@@ -46,7 +49,8 @@ export function WorkspaceSettings() {
       setStages(config.salesStages)
       setSolutions(config.solutions)
       setCustomFields(config.customFields)
-      setVisibleFields(config.visibleFields)
+      setFieldGroups(config.fieldGroups)
+      setCoreFieldVis(config.coreFieldVisibility)
       setBranding(config.branding)
     }
   }, [config])
@@ -100,7 +104,7 @@ export function WorkspaceSettings() {
       </div>
 
       <Tabs defaultValue="pipeline">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pipeline" className="flex items-center gap-1.5 text-xs">
             <GitBranch className="h-3.5 w-3.5" /> Pipeline
           </TabsTrigger>
@@ -158,11 +162,13 @@ export function WorkspaceSettings() {
             <CardContent>
               <LeadFieldSettings
                 customFields={customFields}
-                visibleFields={visibleFields}
+                fieldGroups={fieldGroups}
+                coreFieldVisibility={coreFieldVis}
                 onChangeCustom={setCustomFields}
-                onChangeVisible={setVisibleFields}
+                onChangeGroups={setFieldGroups}
+                onChangeCoreVis={setCoreFieldVis}
                 isSaving={isSaving}
-                onSave={() => save({ customFields, visibleFields })}
+                onSave={() => save({ customFields, fieldGroups, coreFieldVisibility: coreFieldVis })}
               />
             </CardContent>
           </Card>
