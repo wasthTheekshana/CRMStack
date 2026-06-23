@@ -10,6 +10,7 @@ interface WidgetData {
   id: string
   name: string
   chart_type: 'number' | 'bar' | 'pie' | 'table'
+  field_id?: string
   data: { value: number } | { group: string; total: number; average: number; count: number }[]
 }
 
@@ -21,9 +22,6 @@ export function CustomWidgets() {
     customFields.find(f => f.id === fieldId)?.prefix ?? ''
   const getFieldSuffix = (fieldId: string) =>
     customFields.find(f => f.id === fieldId)?.suffix ?? ''
-
-  // Helpers available for data formatting in widget rendering
-  void [getFieldPrefix, getFieldSuffix]
 
   const [widgets, setWidgets] = useState<WidgetData[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,7 +62,7 @@ export function CustomWidgets() {
             <CardContent>
               {widget.chart_type === 'number' && !Array.isArray(widget.data) && (
                 <div className="text-3xl font-bold">
-                  {formatCompactNumber((widget.data as { value: number }).value)}
+                  {widget.field_id && getFieldPrefix(widget.field_id)}{formatCompactNumber((widget.data as { value: number }).value)}{widget.field_id && getFieldSuffix(widget.field_id)}
                 </div>
               )}
 

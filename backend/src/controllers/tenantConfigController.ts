@@ -69,6 +69,32 @@ export async function updateConfig(req: Request, res: Response) {
     }
   }
 
+  // Validate dashboardWidgets
+  const VALID_WIDGET_TYPES = new Set(['sum', 'average', 'count', 'min', 'max', 'group_by'])
+  const VALID_CHART_TYPES  = new Set(['number', 'bar', 'pie', 'table'])
+  const VALID_ROLES        = new Set(['both', 'admin', 'sales'])
+
+  if (Array.isArray(dashboardWidgets)) {
+    for (const w of dashboardWidgets) {
+      if (!VALID_WIDGET_TYPES.has(w.type)) {
+        res.status(400).json({ error: `Invalid widget type: ${w.type}` })
+        return
+      }
+      if (!VALID_CHART_TYPES.has(w.chart_type)) {
+        res.status(400).json({ error: `Invalid chart type: ${w.chart_type}` })
+        return
+      }
+      if (!VALID_ROLES.has(w.role)) {
+        res.status(400).json({ error: `Invalid widget role: ${w.role}` })
+        return
+      }
+      if (w.type !== 'count' && !w.field_id) {
+        res.status(400).json({ error: `Widget "${w.name}" requires a field_id` })
+        return
+      }
+    }
+  }
+
   try {
     const tenantId = req.user!.tenantId;
 

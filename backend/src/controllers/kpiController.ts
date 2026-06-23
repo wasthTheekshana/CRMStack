@@ -148,6 +148,7 @@ export async function getCustomWidgets(req: Request, res: Response) {
           id:         widget.id,
           name:       widget.name,
           chart_type: widget.chart_type,
+          field_id:   widget.field_id,
           data:       result.rows.map((r: any) => ({
             group:   r.group_key ?? 'Unknown',
             total:   parseFloat(r.total) || 0,
@@ -182,6 +183,7 @@ export async function getCustomWidgets(req: Request, res: Response) {
           id:         widget.id,
           name:       widget.name,
           chart_type: widget.chart_type,
+          field_id:   widget.field_id,
           data:       { value: parseFloat(result.rows[0]?.value) || 0 },
         });
       }
