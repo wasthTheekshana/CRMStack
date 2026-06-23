@@ -13,6 +13,7 @@ import { TopCustomers } from '@/components/dashboard/TopCustomers'
 import { RecentActivities } from '@/components/dashboard/RecentActivities'
 import { DashboardCustomizer } from '@/components/dashboard/DashboardCustomizer'
 import { RevenueForecast } from '@/components/dashboard/RevenueForecast'
+import { CustomWidgets } from '@/components/dashboard/CustomWidgets'
 import { PipelineChart } from '@/components/charts/PipelineChart'
 import { SolutionPieChart } from '@/components/charts/SolutionPieChart'
 import { BubbleChart } from '@/components/charts/BubbleChart'
@@ -219,6 +220,9 @@ export function AdminDashboard() {
       {settings.sections.revenueForecasting && (
         <RevenueForecast leads={filteredLeads} />
       )}
+
+      {/* Custom Analytics */}
+      <CustomWidgets />
     </div>
   )
 }
