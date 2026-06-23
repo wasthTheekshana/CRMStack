@@ -8,12 +8,8 @@ export const mapLead = (row: Record<string, unknown>) => ({
   solution:         row.solution,
   contacts:         row.contacts,
   salesStage:       row.sales_stage,
-  imageCount:       row.image_count,
-  boxCount:         row.box_count,
   estimatedRevenue: parseFloat(row.estimated_revenue as string),
   probability:      row.probability,
-  remarks:          row.remarks,
-  hoUpdate:         row.ho_update,
   position:         row.position,
   ownerId:          row.owner_id,
   ownerEmail:       row.owner_email,
@@ -91,18 +87,15 @@ export async function createLead(data: {
   solution:         string;
   contacts:         unknown[];
   salesStage:       string;
-  imageCount:       number;
-  boxCount:         number;
   estimatedRevenue: number;
   probability:      number;
-  remarks:          string;
-  hoUpdate:         string;
   position:         number | null;
   ownerId:          string;
   ownerEmail:       string;
   tenantId:         string;
   customFields?:    Record<string, unknown>;
 }) {
+  const cf = data.customFields ?? {}
   const result = await query(
     `INSERT INTO leads
        (company_name, company_id, solution, contacts, sales_stage,
@@ -116,17 +109,17 @@ export async function createLead(data: {
       data.solution,
       JSON.stringify(data.contacts),
       data.salesStage,
-      data.imageCount,
-      data.boxCount,
+      (cf['std_image_count'] as number) ?? 0,
+      (cf['std_box_count'] as number) ?? 0,
       data.estimatedRevenue,
       data.probability,
-      data.remarks,
-      data.hoUpdate,
+      (cf['std_remarks'] as string) ?? '',
+      (cf['std_ho_update'] as string) ?? '',
       data.position,
       data.ownerId,
       data.ownerEmail,
       data.tenantId,
-      JSON.stringify(data.customFields ?? {}),
+      JSON.stringify(cf),
     ]
   )
   return mapLead(result.rows[0])
@@ -138,17 +131,14 @@ export async function updateLead(id: string, tenantId: string, data: {
   solution?:         string;
   contacts?:         unknown[];
   salesStage?:       string;
-  imageCount?:       number;
-  boxCount?:         number;
   estimatedRevenue?: number;
   probability?:      number;
-  remarks?:          string;
-  hoUpdate?:         string;
   position?:         number | null;
   ownerId?:          string;
   ownerEmail?:       string;
   customFields?:     Record<string, unknown>;
 }) {
+  const cf = data.customFields
   const result = await query(
     `UPDATE leads SET
        company_name      = COALESCE($1,  company_name),
@@ -174,16 +164,16 @@ export async function updateLead(id: string, tenantId: string, data: {
       data.solution,
       data.contacts !== undefined ? JSON.stringify(data.contacts) : null,
       data.salesStage,
-      data.imageCount,
-      data.boxCount,
+      cf ? (cf['std_image_count'] as number ?? null) : null,
+      cf ? (cf['std_box_count'] as number ?? null) : null,
       data.estimatedRevenue,
       data.probability,
-      data.remarks,
-      data.hoUpdate,
+      cf ? (cf['std_remarks'] as string ?? null) : null,
+      cf ? (cf['std_ho_update'] as string ?? null) : null,
       data.position,
       data.ownerId,
       data.ownerEmail,
-      data.customFields !== undefined ? JSON.stringify(data.customFields) : null,
+      cf !== undefined ? JSON.stringify(cf) : null,
       id,
       tenantId,
     ]

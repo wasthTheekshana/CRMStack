@@ -2,10 +2,12 @@ import { Request, Response } from 'express';
 import {
   findConfigByTenantId,
   upsertConfig,
+  FieldConfig,
   DEFAULT_STAGES,
   DEFAULT_SOLUTIONS,
 } from '../models/tenantConfigModel';
 import { renameLeadStage, renameLeadSolution } from '../models/leadModel';
+import { detectCircularRefs } from '../utils/formulaEngine';
 
 /** GET /api/tenant/config — returns the config for the requesting tenant */
 export async function getConfig(req: Request, res: Response) {
@@ -15,15 +17,15 @@ export async function getConfig(req: Request, res: Response) {
     // If no config row yet, return defaults so the frontend always gets something useful
     if (!config) {
       res.json({
-        tenantId:      req.user!.tenantId,
-        salesStages:   DEFAULT_STAGES,
-        solutions:     DEFAULT_SOLUTIONS,
-        customFields:  [],
-        visibleFields: {
-          imageCount: true, boxCount: true,
-          hoUpdate: true, probability: true, remarks: true,
-        },
-        branding: {},
+        tenantId:             req.user!.tenantId,
+        salesStages:          DEFAULT_STAGES,
+        solutions:            DEFAULT_SOLUTIONS,
+        customFields:         [],
+        visibleFields:        {},
+        fieldGroups:          [],
+        dashboardWidgets:     [],
+        coreFieldVisibility:  { probability: true },
+        branding:             {},
       });
       return;
     }
@@ -37,7 +39,10 @@ export async function getConfig(req: Request, res: Response) {
 
 /** PUT /api/tenant/config — admin saves a full or partial config update */
 export async function updateConfig(req: Request, res: Response) {
-  const { salesStages, solutions, customFields, visibleFields, branding } = req.body;
+  const {
+    salesStages, solutions, customFields, visibleFields,
+    fieldGroups, dashboardWidgets, coreFieldVisibility, branding,
+  } = req.body;
 
   // Validate that exactly one stage has isWon: true
   if (salesStages != null) {
@@ -45,6 +50,22 @@ export async function updateConfig(req: Request, res: Response) {
     if (wonStages.length !== 1) {
       res.status(400).json({ error: 'Exactly one stage must be marked as the Won stage' });
       return;
+    }
+  }
+
+  // Validate formula fields for circular references
+  if (customFields != null) {
+    const formulaFields = (customFields as FieldConfig[]).filter(
+      (f: FieldConfig) => f.type === 'formula' && f.formula
+    )
+    if (formulaFields.length > 0) {
+      const cycle = detectCircularRefs(formulaFields)
+      if (cycle) {
+        res.status(400).json({
+          error: `Circular reference detected: ${cycle.join(' → ')}`
+        })
+        return
+      }
     }
   }
 
@@ -76,7 +97,8 @@ export async function updateConfig(req: Request, res: Response) {
     }
 
     const config = await upsertConfig(tenantId, {
-      salesStages, solutions, customFields, visibleFields, branding,
+      salesStages, solutions, customFields, visibleFields,
+      fieldGroups, dashboardWidgets, coreFieldVisibility, branding,
     });
     res.json(config);
   } catch (err) {
