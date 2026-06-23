@@ -18,22 +18,27 @@ export function exportToCSV(leads: Lead[], filename: string = 'leads-export'): v
     const contactName = primaryContact?.name || lead.contactName || ''
     const contactNumber = primaryContact?.phone || lead.contactNumber || ''
 
+    // Flatten custom fields into the export row
+    const customFieldEntries: Record<string, unknown> = {}
+    if (lead.customFields) {
+      for (const [key, value] of Object.entries(lead.customFields)) {
+        customFieldEntries[key] = value
+      }
+    }
+
     return {
       'Company Name': lead.companyName,
       Solution: lead.solution,
       'Contact Name': contactName,
       'Contact Number': contactNumber,
       'Sales Stage': lead.salesStage,
-      'Image Count': lead.imageCount,
-      'Box Count': lead.boxCount,
       'Estimated Revenue': lead.estimatedRevenue,
       'Probability (%)': lead.probability,
       'Weighted Revenue': (lead.estimatedRevenue * lead.probability) / 100,
-      Remarks: lead.remarks,
-      'H/O Update': lead.hoUpdate,
       Owner: lead.ownerEmail,
       'Created Date': format(timestampToDate(lead.createdAt), 'yyyy-MM-dd'),
       'Updated Date': format(timestampToDate(lead.updatedAt), 'yyyy-MM-dd'),
+      ...customFieldEntries,
     }
   })
 

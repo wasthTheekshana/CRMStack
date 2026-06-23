@@ -24,10 +24,6 @@ const CORE_FIELDS: StandardCrmField[] = [
 // Optional standard fields that can be hidden per tenant workspace settings
 const OPTIONAL_FIELDS: { field: StandardCrmField; visibilityKey: string }[] = [
   { field: 'probability', visibilityKey: 'probability' },
-  { field: 'remarks',     visibilityKey: 'remarks'     },
-  { field: 'hoUpdate',    visibilityKey: 'hoUpdate'    },
-  { field: 'imageCount',  visibilityKey: 'imageCount'  },
-  { field: 'boxCount',    visibilityKey: 'boxCount'    },
 ]
 
 interface Props {
