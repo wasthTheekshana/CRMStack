@@ -23,7 +23,7 @@ import { useLeads } from '@/hooks/useLeads'
 import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
 import { exportToCSV, exportToPDF } from '@/lib/utils/exporters'
 import { SalesStage } from '@/types'
-import { useSalesStages, useStageColor, useBranding } from '@/store/tenantStore'
+import { useSalesStages, useStageColor, useBranding, useCustomFields } from '@/store/tenantStore'
 
 export function ReportsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all')
@@ -35,6 +35,11 @@ export function ReportsPage() {
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
   const branding = useBranding()
+  const customFields = useCustomFields()
+  const fieldLabels = useMemo(
+    () => Object.fromEntries(customFields.map(f => [f.id, f.name])),
+    [customFields]
+  )
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -91,7 +96,7 @@ export function ReportsPage() {
   }
 
   const handleExportCSV = () => {
-    exportToCSV(filteredLeads, 'leads-report')
+    exportToCSV(filteredLeads, 'leads-report', fieldLabels)
   }
 
   const handleExportPDF = () => {

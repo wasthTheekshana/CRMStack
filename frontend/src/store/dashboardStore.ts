@@ -18,6 +18,7 @@ export const defaultDashboardSettings: DashboardSettings = {
     recentActivities: true,
     revenueByStage: true,
     revenueForecasting: true,
+    teamTotalsByStage: true,
   },
   navigation: {
     salesTargets: true,

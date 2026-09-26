@@ -10,6 +10,7 @@ import { KPICard } from '@/components/dashboard/KPICard'
 import { TopCustomers } from '@/components/dashboard/TopCustomers'
 import { RecentActivities } from '@/components/dashboard/RecentActivities'
 import { UpcomingTasks } from '@/components/dashboard/UpcomingTasks'
+import { CustomWidgets } from '@/components/dashboard/CustomWidgets'
 import { PipelineChart } from '@/components/charts/PipelineChart'
 import { SolutionPieChart } from '@/components/charts/SolutionPieChart'
 import { BubbleChart } from '@/components/charts/BubbleChart'
@@ -108,6 +109,9 @@ export function SalesDashboard() {
           showRevenue={true}
         />
       </div>
+
+      {/* Custom Analytics */}
+      <CustomWidgets />
     </div>
   )
 }

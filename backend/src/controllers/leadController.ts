@@ -19,9 +19,10 @@ import {
 } from '../services/notificationService';
 import { createActivity } from '../models/activityModel';
 import { countActiveLeads } from '../models/tenantModel';
-import { findConfigByTenantId } from '../models/tenantConfigModel';
+import { FieldConfig, findConfigByTenantId } from '../models/tenantConfigModel';
 import { findCompanyById, findOrCreateCompany } from '../models/companyModel';
 import { pool } from '../config/db';
+import { evaluateFormula, topologicalSort } from '../utils/formulaEngine';
 
 const MAX_STR      = 500;   // short fields: names, stages, emails
 const MAX_TEXT     = 5000;  // free-text fields: remarks, hoUpdate
@@ -71,6 +72,9 @@ async function validateRequiredCustomFields(
   if (!config) return null
   for (const field of config.customFields) {
     if (!field.required) continue
+    // Formula fields are computed server-side after validation runs (evaluateFormulaFields),
+    // so they never have a value at this point — skip them here, not just client-side.
+    if (field.type === 'formula') continue
     const value = customFields[field.id]
     const isEmpty =
       value == null ||
@@ -81,6 +85,64 @@ async function validateRequiredCustomFields(
     }
   }
   return null
+}
+
+async function evaluateFormulaFields(
+  tenantId: string,
+  customFields: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const config = await findConfigByTenantId(tenantId)
+  if (!config) return customFields
+
+  const formulaFields = config.customFields.filter(f => f.type === 'formula' && f.formula)
+  if (formulaFields.length === 0) return customFields
+
+  const sortedIds = topologicalSort(formulaFields)
+  const result = { ...customFields }
+  const numericValues: Record<string, number> = {}
+
+  // Only fields declared as 'number' or 'formula' are valid formula inputs — otherwise
+  // a text field that happens to hold a numeric-looking string (e.g. a reference number)
+  // would silently leak into formula scope with no validation error.
+  const numericFieldIds = new Set(
+    config.customFields.filter(f => f.type === 'number' || f.type === 'formula').map(f => f.id)
+  )
+  for (const [key, val] of Object.entries(result)) {
+    if (!numericFieldIds.has(key)) continue
+    if (typeof val === 'number') numericValues[key] = val
+    else if (typeof val === 'string' && !isNaN(Number(val)) && val.trim() !== '') numericValues[key] = Number(val)
+  }
+
+  // Evaluate formulas in topological order
+  for (const fieldId of sortedIds) {
+    const field = formulaFields.find(f => f.id === fieldId)
+    if (!field?.formula) continue
+    try {
+      const value = evaluateFormula(field.formula, numericValues)
+      result[fieldId] = value
+      numericValues[fieldId] = value
+    } catch {
+      result[fieldId] = 0
+    }
+  }
+
+  return result
+}
+
+function mapLegacyFieldsToCustom(body: Record<string, unknown>): Record<string, unknown> {
+  const cf = (body.customFields as Record<string, unknown>) ?? {}
+  const mapping: Record<string, string> = {
+    imageCount: 'std_image_count',
+    boxCount:   'std_box_count',
+    remarks:    'std_remarks',
+    hoUpdate:   'std_ho_update',
+  }
+  for (const [oldKey, newKey] of Object.entries(mapping)) {
+    if (body[oldKey] !== undefined && cf[newKey] === undefined) {
+      cf[newKey] = body[oldKey]
+    }
+  }
+  return cf
 }
 
 export async function listLeads(req: Request, res: Response) {
@@ -120,8 +182,8 @@ export async function getLead(req: Request, res: Response) {
 export async function createLeadHandler(req: Request, res: Response) {
   const {
     companyName, companyId, solution, contacts, salesStage,
-    imageCount, boxCount, estimatedRevenue, probability,
-    remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
+    estimatedRevenue, probability,
+    position, ownerId, ownerEmail,
   } = req.body;
 
   if (!companyName || !solution || !salesStage) {
@@ -153,14 +215,20 @@ export async function createLeadHandler(req: Request, res: Response) {
   }
 
   try {
+    // Map legacy field names into customFields for backward compat
+    const mergedCf = mapLegacyFieldsToCustom(req.body)
+
     const cfError = await validateRequiredCustomFields(
       req.user!.tenantId,
-      (customFields as Record<string, unknown>) ?? {}
+      mergedCf
     )
     if (cfError) {
       res.status(400).json({ error: cfError })
       return
     }
+
+    // Evaluate formula fields before persisting
+    const cf = await evaluateFormulaFields(req.user!.tenantId, mergedCf)
 
     // Auto-create company record if only a name was provided (no existing company selected).
     // This ensures the Companies page stays populated for every lead.
@@ -202,11 +270,15 @@ export async function createLeadHandler(req: Request, res: Response) {
           [
             companyName, resolvedCompanyId, solution,
             JSON.stringify(contacts || []),
-            salesStage, imageCount || 0, boxCount || 0,
+            salesStage,
+            (cf['std_image_count'] as number) ?? 0,
+            (cf['std_box_count'] as number) ?? 0,
             estimatedRevenue || 0, probability || 0,
-            remarks || '', hoUpdate || '', position || null,
+            (cf['std_remarks'] as string) ?? '',
+            (cf['std_ho_update'] as string) ?? '',
+            position || null,
             actualOwnerId, actualOwnerEmail,
-            req.user!.tenantId, JSON.stringify(customFields ?? {}),
+            req.user!.tenantId, JSON.stringify(cf),
           ]
         )
         await client.query('COMMIT')
@@ -225,17 +297,13 @@ export async function createLeadHandler(req: Request, res: Response) {
         solution,
         contacts:         contacts || [],
         salesStage,
-        imageCount:       imageCount || 0,
-        boxCount:         boxCount || 0,
         estimatedRevenue: estimatedRevenue || 0,
         probability:      probability || 0,
-        remarks:          remarks || '',
-        hoUpdate:         hoUpdate || '',
         position:         position || null,
         ownerId:          actualOwnerId,
         ownerEmail:       actualOwnerEmail,
         tenantId:         req.user!.tenantId,
-        customFields:     customFields || {},
+        customFields:     cf,
       })
     }
 
@@ -255,8 +323,8 @@ export async function createLeadHandler(req: Request, res: Response) {
 export async function updateLeadHandler(req: Request, res: Response) {
   const {
     companyName, companyId, solution, contacts, salesStage,
-    imageCount, boxCount, estimatedRevenue, probability,
-    remarks, hoUpdate, position, ownerId, ownerEmail, customFields,
+    estimatedRevenue, probability,
+    position, ownerId, ownerEmail,
   } = req.body;
 
   try {
@@ -278,20 +346,35 @@ export async function updateLeadHandler(req: Request, res: Response) {
       return;
     }
 
+    // Map legacy field names into customFields for backward compat
+    const incomingCf = mapLegacyFieldsToCustom(req.body)
+
     // Only enforce required custom fields when the client actually submits
     // customFields (i.e. the full edit form). Partial updates such as a Kanban
     // drag — which send only `position` or `salesStage` — must not be blocked
     // because a lead is missing a required custom-field value it never had.
-    if (customFields != null) {
+    const hasCustomFields = req.body.customFields != null ||
+      ['imageCount', 'boxCount', 'remarks', 'hoUpdate'].some(k => req.body[k] !== undefined)
+    if (hasCustomFields) {
       const merged = {
         ...(existingLead.customFields as Record<string, unknown> ?? {}),
-        ...(customFields as Record<string, unknown>),
+        ...incomingCf,
       }
       const cfError = await validateRequiredCustomFields(req.user!.tenantId, merged)
       if (cfError) {
         res.status(400).json({ error: cfError })
         return
       }
+    }
+
+    // Merge existing custom fields with incoming, then evaluate formulas
+    let cf: Record<string, unknown> | undefined
+    if (hasCustomFields) {
+      const merged = {
+        ...(existingLead.customFields as Record<string, unknown> ?? {}),
+        ...incomingCf,
+      }
+      cf = await evaluateFormulaFields(req.user!.tenantId, merged)
     }
 
     if (companyId != null) {
@@ -305,10 +388,9 @@ export async function updateLeadHandler(req: Request, res: Response) {
 
     const lead = await updateLead(req.params.id, req.user!.tenantId, {
       companyName, companyId, solution, contacts, salesStage,
-      imageCount, boxCount, estimatedRevenue, probability,
-      remarks, hoUpdate, position,
+      estimatedRevenue, probability, position,
       ownerId: resolvedOwnerId, ownerEmail: resolvedOwnerEmail,
-      customFields,
+      customFields: cf,
     });
     if (!lead) { res.status(404).json({ error: 'Lead not found' }); return; }
 

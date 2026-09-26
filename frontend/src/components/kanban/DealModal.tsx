@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Loader2, Save, Trash2, UserPlus, Star, AlertCircle } from 'lucide-react'
+import { Loader2, Save, Trash2, UserPlus, Star, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import {
   Select,
@@ -25,8 +24,15 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { Lead, SalesStage, Contact } from '@/types'
-import { useSalesStages, useSolutions, useDefaultProbability, useCustomFields, useVisibleFields } from '@/store/tenantStore'
-import type { CustomFieldConfig } from '@/store/tenantStore'
+import {
+  useSalesStages,
+  useSolutions,
+  useDefaultProbability,
+  useCustomFields,
+  useFieldGroups,
+  useCoreFieldVisibility,
+} from '@/store/tenantStore'
+import type { FieldConfig, FieldGroup } from '@/store/tenantStore'
 import { useIsAdmin } from '@/store/authStore'
 import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { LeadExpiryPanel } from '@/components/leads/LeadExpiryPanel'
@@ -39,12 +45,8 @@ const dealSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
   solution: z.string().min(1, 'Solution is required'),
   salesStage: z.string(),
-  imageCount: z.coerce.number().min(0),
-  boxCount: z.coerce.number().min(0),
   estimatedRevenue: z.coerce.number().min(0),
   probability: z.coerce.number().min(0).max(100),
-  remarks: z.string(),
-  hoUpdate: z.string(),
 })
 
 type DealFormData = z.infer<typeof dealSchema>
@@ -61,6 +63,117 @@ interface DealModalProps {
 // Generate unique ID for contacts
 const generateContactId = () => `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+function FieldGroupSection({
+  group,
+  fields,
+  customFieldValues,
+  setCustomFieldValues,
+  isLoading,
+}: {
+  group: FieldGroup
+  fields: FieldConfig[]
+  customFieldValues: Record<string, string>
+  setCustomFieldValues: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  isLoading: boolean
+}) {
+  const [collapsed, setCollapsed] = useState(group.collapsed ?? false)
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 hover:bg-muted transition-colors text-sm font-semibold"
+        onClick={() => setCollapsed(c => !c)}
+      >
+        <span>{group.name}</span>
+        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+
+      {!collapsed && (
+        <div className="p-4 grid grid-cols-2 gap-4">
+          {fields.map((cf) => (
+            <div key={cf.id} className={cn('space-y-2', (cf.type === 'text' || cf.type === 'formula') && 'col-span-2')}>
+              <Label htmlFor={`cf_${cf.id}`}>
+                {cf.name}
+                {cf.required && <span className="text-destructive ml-1">*</span>}
+                {cf.prefix && <span className="text-muted-foreground ml-1 text-xs">({cf.prefix})</span>}
+                {cf.suffix && <span className="text-muted-foreground ml-1 text-xs">({cf.suffix})</span>}
+              </Label>
+
+              {cf.type === 'formula' && (
+                <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/30 text-muted-foreground text-sm flex items-center">
+                  <span className="italic text-xs text-muted-foreground mr-2">[computed]</span>
+                  {customFieldValues[cf.id] ?? '—'}
+                </div>
+              )}
+
+              {cf.type === 'text' && (
+                <Input
+                  id={`cf_${cf.id}`}
+                  value={customFieldValues[cf.id] ?? ''}
+                  onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                  disabled={isLoading}
+                />
+              )}
+
+              {cf.type === 'number' && (
+                <Input
+                  id={`cf_${cf.id}`}
+                  type="number"
+                  value={customFieldValues[cf.id] ?? ''}
+                  onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                  disabled={isLoading}
+                />
+              )}
+
+              {cf.type === 'date' && (
+                <Input
+                  id={`cf_${cf.id}`}
+                  type="date"
+                  value={customFieldValues[cf.id] ?? ''}
+                  onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                  disabled={isLoading}
+                />
+              )}
+
+              {cf.type === 'select' && (
+                <Select
+                  value={customFieldValues[cf.id] ?? ''}
+                  onValueChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    {cf.options.map(opt => (
+                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {cf.type === 'checkbox' && (
+                <div className="flex items-center gap-2 h-10">
+                  <input
+                    id={`cf_${cf.id}`}
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input accent-primary"
+                    checked={customFieldValues[cf.id] === 'true'}
+                    onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: String(e.target.checked) }))}
+                    disabled={isLoading}
+                  />
+                  <label htmlFor={`cf_${cf.id}`} className="text-sm text-muted-foreground">
+                    {cf.name}
+                  </label>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function DealModal({
   lead,
   open,
@@ -74,7 +187,8 @@ export function DealModal({
   const getDefaultProb   = useDefaultProbability()
   const isAdmin          = useIsAdmin()
   const customFields     = useCustomFields()
-  const visibleFields    = useVisibleFields()
+  const fieldGroups      = useFieldGroups()
+  const coreFieldVis     = useCoreFieldVisibility()
 
   const [activeTab, setActiveTab] = useState<'details' | 'activity'>('details')
   const [isLoading, setIsLoading] = useState(false)
@@ -98,7 +212,7 @@ export function DealModal({
     }
   }, [lead])
 
-  // Initialize custom field values from saved lead data
+  // Pre-populate customFieldValues from lead.customFields when lead changes
   useEffect(() => {
     if (lead) {
       const vals: Record<string, string> = {}
@@ -142,12 +256,8 @@ export function DealModal({
       companyName: '',
       solution: '',
       salesStage: 'Meeting Pending',
-      imageCount: 0,
-      boxCount: 0,
       estimatedRevenue: 0,
       probability: 25,
-      remarks: '',
-      hoUpdate: '',
     },
   })
 
@@ -158,12 +268,8 @@ export function DealModal({
         companyName: lead.companyName,
         solution: lead.solution,
         salesStage: lead.salesStage,
-        imageCount: lead.imageCount,
-        boxCount: lead.boxCount,
         estimatedRevenue: lead.estimatedRevenue,
         probability: lead.probability,
-        remarks: lead.remarks || '',
-        hoUpdate: lead.hoUpdate || '',
       })
     }
   }, [lead, reset])
@@ -171,6 +277,30 @@ export function DealModal({
   const probability = watch('probability')
   const salesStage = watch('salesStage')
   const estimatedRevenue = watch('estimatedRevenue')
+
+  // Group custom fields by their group property, sorted by order
+  const fieldsByGroup = useMemo(() => {
+    const grouped = new Map<string, FieldConfig[]>()
+    for (const cf of customFields) {
+      const groupId = cf.group ?? 'grp_general'
+      const list = grouped.get(groupId) ?? []
+      list.push(cf)
+      grouped.set(groupId, list)
+    }
+    // Sort fields within each group by order
+    for (const [, list] of grouped) {
+      list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    }
+    return grouped
+  }, [customFields])
+
+  // Sort groups by order
+  const sortedGroups = useMemo(() => {
+    const groups = fieldGroups.length > 0
+      ? [...fieldGroups].sort((a, b) => a.order - b.order)
+      : [{ id: 'grp_general', name: 'Additional Fields', order: 0 }]
+    return groups.filter(g => fieldsByGroup.has(g.id))
+  }, [fieldGroups, fieldsByGroup])
 
   const addContact = () => {
     setContacts([
@@ -230,8 +360,9 @@ export function DealModal({
         isPrimary: c.isPrimary,
       }))
 
-      // Validate required custom fields
+      // Validate required custom fields (skip formula fields)
       for (const cf of customFields) {
+        if (cf.type === 'formula') continue
         if (cf.required && !customFieldValues[cf.id]?.trim()) {
           setValidationError(`"${cf.name}" is required`)
           return
@@ -242,12 +373,8 @@ export function DealModal({
         companyName: data.companyName,
         solution: data.solution,
         salesStage: data.salesStage as SalesStage,
-        imageCount: data.imageCount,
-        boxCount: data.boxCount,
         estimatedRevenue: data.estimatedRevenue,
         probability: data.probability,
-        remarks: data.remarks || '',
-        hoUpdate: data.hoUpdate || '',
         contacts: cleanedContacts,
         ownerId: ownerState?.ownerId ?? lead.ownerId,
         ownerEmail: ownerState?.ownerEmail ?? lead.ownerEmail,
@@ -502,65 +629,18 @@ export function DealModal({
               )}
             </div>
 
-            <div className="space-y-2 col-span-2">
-              <div className="flex items-center justify-between">
-                <Label>Probability</Label>
-                <span className="text-sm font-medium">{probability}%</span>
-              </div>
-              <Slider
-                value={[probability || 0]}
-                onValueChange={([value]) => setValue('probability', value)}
-                max={100}
-                step={5}
-                disabled={isLoading}
-              />
-            </div>
-
-            {visibleFields['imageCount'] !== false && (
-              <div className="space-y-2">
-                <Label htmlFor="imageCount">Image Count</Label>
-                <Input
-                  id="imageCount"
-                  type="number"
-                  {...register('imageCount')}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
-
-            {visibleFields['boxCount'] !== false && (
-              <div className="space-y-2">
-                <Label htmlFor="boxCount">Box Count</Label>
-                <Input
-                  id="boxCount"
-                  type="number"
-                  {...register('boxCount')}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
-
-            {visibleFields['remarks'] !== false && (
+            {coreFieldVis.probability !== false && (
               <div className="space-y-2 col-span-2">
-                <Label htmlFor="remarks">Remarks</Label>
-                <Textarea
-                  id="remarks"
-                  {...register('remarks')}
+                <div className="flex items-center justify-between">
+                  <Label>Probability</Label>
+                  <span className="text-sm font-medium">{probability}%</span>
+                </div>
+                <Slider
+                  value={[probability || 0]}
+                  onValueChange={([value]) => setValue('probability', value)}
+                  max={100}
+                  step={5}
                   disabled={isLoading}
-                  rows={3}
-                  maxLength={5000}
-                />
-              </div>
-            )}
-
-            {visibleFields['hoUpdate'] !== false && (
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="hoUpdate">H/O Update</Label>
-                <Input
-                  id="hoUpdate"
-                  {...register('hoUpdate')}
-                  disabled={isLoading}
-                  maxLength={5000}
                 />
               </div>
             )}
@@ -594,80 +674,22 @@ export function DealModal({
             </div>
           </div>
 
-          {/* Custom fields configured in Workspace Settings → Lead Fields */}
-          {customFields.length > 0 && (
+          {/* Custom fields — grouped and collapsible */}
+          {sortedGroups.length > 0 && (
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Custom Fields</Label>
-              <div className="grid grid-cols-2 gap-4">
-                {customFields.map((cf: CustomFieldConfig) => (
-                  <div key={cf.id} className={cn('space-y-2', cf.type === 'text' && 'col-span-2')}>
-                    <Label htmlFor={`cf_${cf.id}`}>
-                      {cf.name}
-                      {cf.required && <span className="text-destructive ml-1">*</span>}
-                    </Label>
-
-                    {(cf.type === 'text') && (
-                      <Input
-                        id={`cf_${cf.id}`}
-                        value={customFieldValues[cf.id] ?? ''}
-                        onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
-                        disabled={isLoading}
-                      />
-                    )}
-
-                    {cf.type === 'number' && (
-                      <Input
-                        id={`cf_${cf.id}`}
-                        type="number"
-                        value={customFieldValues[cf.id] ?? ''}
-                        onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
-                        disabled={isLoading}
-                      />
-                    )}
-
-                    {cf.type === 'date' && (
-                      <Input
-                        id={`cf_${cf.id}`}
-                        type="date"
-                        value={customFieldValues[cf.id] ?? ''}
-                        onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
-                        disabled={isLoading}
-                      />
-                    )}
-
-                    {cf.type === 'select' && (
-                      <Select
-                        value={customFieldValues[cf.id] ?? ''}
-                        onValueChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
-                        disabled={isLoading}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                        <SelectContent>
-                          {cf.options.map(opt => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    {cf.type === 'checkbox' && (
-                      <div className="flex items-center gap-2 h-10">
-                        <input
-                          id={`cf_${cf.id}`}
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-input accent-primary"
-                          checked={customFieldValues[cf.id] === 'true'}
-                          onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: String(e.target.checked) }))}
-                          disabled={isLoading}
-                        />
-                        <label htmlFor={`cf_${cf.id}`} className="text-sm text-muted-foreground">
-                          {cf.name}
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              {sortedGroups.map((group) => {
+                const fields = fieldsByGroup.get(group.id) ?? []
+                return (
+                  <FieldGroupSection
+                    key={group.id}
+                    group={group}
+                    fields={fields}
+                    customFieldValues={customFieldValues}
+                    setCustomFieldValues={setCustomFieldValues}
+                    isLoading={isLoading}
+                  />
+                )
+              })}
             </div>
           )}
 

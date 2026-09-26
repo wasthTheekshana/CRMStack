@@ -207,12 +207,21 @@ export async function createTenant(req: Request, res: Response) {
        VALUES ($1, $2, $3, $4, $5, 'admin', TRUE)`,
       [tenant.id, adminEmail.toLowerCase().trim(), username, adminName, passwordHash]
     );
+    // Standard fields (Image Count / Box Count / Remarks / HO Update) are now plain
+    // custom fields rather than hardcoded columns (see migration 023). Existing
+    // tenants were backfilled with these by that migration — new tenants must get
+    // the same defaults here, or DealModal/LeadForm render without them entirely.
     await client.query(
-      `INSERT INTO tenant_configs (tenant_id, sales_stages, solutions, custom_fields, visible_fields, branding)
+      `INSERT INTO tenant_configs
+         (tenant_id, sales_stages, solutions, custom_fields, visible_fields, field_groups, core_field_visibility, branding)
        VALUES ($1,
          '[{"id":"s1","name":"On Hold","color":"#F97316","probability":10,"order":0,"isWon":false},{"id":"s2","name":"Meeting Pending","color":"#3B82F6","probability":25,"order":1,"isWon":false},{"id":"s3","name":"Proposal Sent","color":"#8B5CF6","probability":50,"order":2,"isWon":false},{"id":"s4","name":"Negotiated","color":"#A855F7","probability":75,"order":3,"isWon":false},{"id":"s5","name":"Verbal Yes","color":"#EC4899","probability":90,"order":4,"isWon":false},{"id":"s6","name":"Closed & Won","color":"#22C55E","probability":100,"order":5,"isWon":true}]'::jsonb,
          '[{"id":"p1","name":"Document Management"},{"id":"p2","name":"Digital Archiving"},{"id":"p3","name":"Workflow Automation"}]'::jsonb,
-         '[]'::jsonb, '{}'::jsonb, '{}'::jsonb)`,
+         '[{"id":"std_image_count","name":"Image Count","type":"number","required":false,"options":[],"group":"grp_general","order":0},{"id":"std_box_count","name":"Box Count","type":"number","required":false,"options":[],"group":"grp_general","order":1},{"id":"std_remarks","name":"Remarks","type":"text","required":false,"options":[],"group":"grp_general","order":2},{"id":"std_ho_update","name":"HO Update","type":"text","required":false,"options":[],"group":"grp_general","order":3}]'::jsonb,
+         '{}'::jsonb,
+         '[{"id":"grp_general","name":"General","order":0,"collapsed":false}]'::jsonb,
+         '{"probability": true}'::jsonb,
+         '{}'::jsonb)`,
       [tenant.id]
     );
     await client.query('COMMIT');

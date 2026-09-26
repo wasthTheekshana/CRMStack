@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings, GitBranch, Package, ListPlus, Palette, Trash2, AlertTriangle } from 'lucide-react'
+import { Settings, GitBranch, Package, ListPlus, Palette, BarChart3, Trash2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -17,13 +17,17 @@ import { PipelineSettings } from '@/components/settings/PipelineSettings'
 import { ProductSettings } from '@/components/settings/ProductSettings'
 import { LeadFieldSettings } from '@/components/settings/LeadFieldSettings'
 import { BrandingSettings } from '@/components/settings/BrandingSettings'
+import { DashboardWidgetSettings } from '@/components/settings/DashboardWidgetSettings'
 import { apiFetch } from '@/config/api'
 import {
   useTenantStore,
   SalesStageConfig,
   SolutionConfig,
   CustomFieldConfig,
+  FieldGroup,
+  CoreFieldVisibility,
   BrandingConfig,
+  DashboardWidget,
 } from '@/store/tenantStore'
 
 export function WorkspaceSettings() {
@@ -37,8 +41,10 @@ export function WorkspaceSettings() {
   const [stages,        setStages]        = useState<SalesStageConfig[]>([])
   const [solutions,     setSolutions]     = useState<SolutionConfig[]>([])
   const [customFields,  setCustomFields]  = useState<CustomFieldConfig[]>([])
-  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({})
+  const [fieldGroups,   setFieldGroups]   = useState<FieldGroup[]>([])
+  const [coreFieldVis,  setCoreFieldVis]  = useState<CoreFieldVisibility>({})
   const [branding,      setBranding]      = useState<BrandingConfig>({})
+  const [dashboardWidgets, setDashboardWidgets] = useState<DashboardWidget[]>([])
 
   // Initialise local state from loaded config
   useEffect(() => {
@@ -46,8 +52,10 @@ export function WorkspaceSettings() {
       setStages(config.salesStages)
       setSolutions(config.solutions)
       setCustomFields(config.customFields)
-      setVisibleFields(config.visibleFields)
+      setFieldGroups(config.fieldGroups)
+      setCoreFieldVis(config.coreFieldVisibility)
       setBranding(config.branding)
+      setDashboardWidgets(config.dashboardWidgets ?? [])
     }
   }, [config])
 
@@ -100,7 +108,7 @@ export function WorkspaceSettings() {
       </div>
 
       <Tabs defaultValue="pipeline">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pipeline" className="flex items-center gap-1.5 text-xs">
             <GitBranch className="h-3.5 w-3.5" /> Pipeline
           </TabsTrigger>
@@ -112,6 +120,9 @@ export function WorkspaceSettings() {
           </TabsTrigger>
           <TabsTrigger value="branding" className="flex items-center gap-1.5 text-xs">
             <Palette className="h-3.5 w-3.5" /> Branding
+          </TabsTrigger>
+          <TabsTrigger value="widgets" className="flex items-center gap-1.5 text-xs">
+            <BarChart3 className="h-3.5 w-3.5" /> Widgets
           </TabsTrigger>
         </TabsList>
 
@@ -158,11 +169,13 @@ export function WorkspaceSettings() {
             <CardContent>
               <LeadFieldSettings
                 customFields={customFields}
-                visibleFields={visibleFields}
+                fieldGroups={fieldGroups}
+                coreFieldVisibility={coreFieldVis}
                 onChangeCustom={setCustomFields}
-                onChangeVisible={setVisibleFields}
+                onChangeGroups={setFieldGroups}
+                onChangeCoreVis={setCoreFieldVis}
                 isSaving={isSaving}
-                onSave={() => save({ customFields, visibleFields })}
+                onSave={() => save({ customFields, fieldGroups, coreFieldVisibility: coreFieldVis })}
               />
             </CardContent>
           </Card>
@@ -180,6 +193,24 @@ export function WorkspaceSettings() {
                 onChange={setBranding}
                 isSaving={isSaving}
                 onSave={() => save({ branding })}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="widgets">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dashboard Widgets</CardTitle>
+              <CardDescription>Configure custom analytics widgets for the dashboard</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DashboardWidgetSettings
+                widgets={dashboardWidgets}
+                customFields={customFields}
+                onChange={setDashboardWidgets}
+                isSaving={isSaving}
+                onSave={() => save({ dashboardWidgets })}
               />
             </CardContent>
           </Card>

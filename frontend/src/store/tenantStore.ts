@@ -6,6 +6,10 @@ import {
   SalesStageConfig,
   SolutionConfig,
   CustomFieldConfig,
+  FieldConfig,
+  FieldGroup,
+  DashboardWidget,
+  CoreFieldVisibility,
   BrandingConfig,
 } from '@/services/tenantService'
 
@@ -15,6 +19,10 @@ export type {
   SalesStageConfig,
   SolutionConfig,
   CustomFieldConfig,
+  FieldConfig,
+  FieldGroup,
+  DashboardWidget,
+  CoreFieldVisibility,
   BrandingConfig,
 }
 
@@ -62,6 +70,9 @@ export const useSolutions      = () => useTenantStore(s => s.config?.solutions  
 export const useCustomFields   = () => useTenantStore(s => s.config?.customFields  ?? [])
 export const useVisibleFields  = () => useTenantStore(s => s.config?.visibleFields ?? {})
 export const useBranding       = () => useTenantStore(s => s.config?.branding      ?? {})
+export const useFieldGroups         = () => useTenantStore(s => s.config?.fieldGroups        ?? [])
+export const useDashboardWidgets    = () => useTenantStore(s => s.config?.dashboardWidgets   ?? [])
+export const useCoreFieldVisibility = () => useTenantStore(s => s.config?.coreFieldVisibility ?? {})
 
 /** Returns the probability for a given stage name, or 25 as fallback */
 export function useDefaultProbability() {
