@@ -124,9 +124,9 @@ export async function getCustomWidgets(req: Request, res: Response) {
     const ownerClause = isAdmin ? '' : 'AND owner_id = $2';
     const baseParams  = isAdmin ? [tenantId] : [tenantId, userId];
 
-    const results = [];
-
-    for (const widget of widgets) {
+    // Each widget's query is independent — no shared transaction or data dependency —
+    // so run them concurrently instead of paying the sum of every round trip serially.
+    const results = await Promise.all(widgets.map(async (widget) => {
       const fieldParam = widget.field_id;
 
       if (widget.type === 'group_by' && widget.group_by_field) {
@@ -144,7 +144,7 @@ export async function getCustomWidgets(req: Request, res: Response) {
            ORDER BY total DESC`,
           [...baseParams, groupField, fieldParam]
         );
-        results.push({
+        return {
           id:         widget.id,
           name:       widget.name,
           chart_type: widget.chart_type,
@@ -155,7 +155,7 @@ export async function getCustomWidgets(req: Request, res: Response) {
             average: parseFloat(r.average) || 0,
             count:   parseInt(r.count),
           })),
-        });
+        };
       } else {
         // Scalar aggregation (sum, average, count, min, max)
         const aggMap: Record<string, string> = {
@@ -179,15 +179,15 @@ export async function getCustomWidgets(req: Request, res: Response) {
           widget.type === 'count' ? baseParams : [...baseParams, fieldParam]
         );
 
-        results.push({
+        return {
           id:         widget.id,
           name:       widget.name,
           chart_type: widget.chart_type,
           field_id:   widget.field_id,
           data:       { value: parseFloat(result.rows[0]?.value) || 0 },
-        });
+        };
       }
-    }
+    }));
 
     res.json({ widgets: results });
   } catch (err) {

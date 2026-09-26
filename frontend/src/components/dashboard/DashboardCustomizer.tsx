@@ -43,6 +43,7 @@ const SECTION_LABELS: Record<keyof DashboardSettings['sections'], string> = {
   recentActivities: 'Recent Activities',
   revenueByStage: 'Revenue by Stage',
   revenueForecasting: 'Revenue Forecasting',
+  teamTotalsByStage: 'Team Totals by Stage',
 }
 
 const NAVIGATION_LABELS: Record<keyof NonNullable<DashboardSettings['navigation']>, string> = {
@@ -205,7 +206,7 @@ export function DashboardCustomizer() {
                         htmlFor={`section-${key}`}
                         className="flex items-center gap-2 cursor-pointer"
                       >
-                        {settings.sections[key] ? (
+                        {settings.sections[key] ?? true ? (
                           <Eye className="h-4 w-4 text-green-600" />
                         ) : (
                           <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -214,7 +215,7 @@ export function DashboardCustomizer() {
                       </Label>
                       <Switch
                         id={`section-${key}`}
-                        checked={settings.sections[key]}
+                        checked={settings.sections[key] ?? true}
                         onCheckedChange={(checked: boolean) => updateSection(key, checked)}
                       />
                     </div>

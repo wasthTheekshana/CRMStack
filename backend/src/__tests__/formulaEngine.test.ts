@@ -62,6 +62,14 @@ describe('formulaEngine', () => {
       expect(evaluateFormula('MAX({{a}}, {{b}})', { a: 5, b: 3 })).toBe(5)
     })
 
+    it('handles MIN with more than two arguments', () => {
+      expect(evaluateFormula('MIN({{a}}, {{b}}, {{c}})', { a: 5, b: 10, c: 1 })).toBe(1)
+    })
+
+    it('handles MAX with more than two arguments', () => {
+      expect(evaluateFormula('MAX({{a}}, {{b}}, {{c}})', { a: 5, b: 10, c: 1 })).toBe(10)
+    })
+
     it('throws on invalid syntax', () => {
       expect(() => evaluateFormula('{{a}} +', { a: 1 })).toThrow()
     })

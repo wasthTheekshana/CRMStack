@@ -145,6 +145,7 @@ export interface DashboardSettings {
     recentActivities: boolean
     revenueByStage: boolean
     revenueForecasting: boolean
+    teamTotalsByStage?: boolean
   }
   navigation?: {
     salesTargets: boolean

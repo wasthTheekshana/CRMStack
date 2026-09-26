@@ -11,18 +11,24 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
 }
 
-// Export leads to CSV
-export function exportToCSV(leads: Lead[], filename: string = 'leads-export'): void {
+// Export leads to CSV.
+// fieldLabels maps a custom field's id (e.g. 'std_image_count', 'cf1700000000123')
+// to its human-readable name (e.g. 'Image Count') so the CSV header isn't the raw id.
+export function exportToCSV(
+  leads: Lead[],
+  filename: string = 'leads-export',
+  fieldLabels: Record<string, string> = {}
+): void {
   const data = leads.map((lead) => {
     const primaryContact = lead.contacts?.find(c => c.isPrimary) || lead.contacts?.[0]
     const contactName = primaryContact?.name || lead.contactName || ''
     const contactNumber = primaryContact?.phone || lead.contactNumber || ''
 
-    // Flatten custom fields into the export row
+    // Flatten custom fields into the export row, using their display name as the header
     const customFieldEntries: Record<string, unknown> = {}
     if (lead.customFields) {
       for (const [key, value] of Object.entries(lead.customFields)) {
-        customFieldEntries[key] = value
+        customFieldEntries[fieldLabels[key] ?? key] = value
       }
     }
 

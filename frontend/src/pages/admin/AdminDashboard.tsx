@@ -18,8 +18,16 @@ import { PipelineChart } from '@/components/charts/PipelineChart'
 import { SolutionPieChart } from '@/components/charts/SolutionPieChart'
 import { BubbleChart } from '@/components/charts/BubbleChart'
 import { useLeads } from '@/hooks/useLeads'
-import { useKPIs, useStageData, useSolutionData, useTopCustomers } from '@/hooks/useKPIs'
+import {
+  useKPIs,
+  useStageData,
+  useSolutionData,
+  useTopCustomers,
+  useTeamMemberStageKpi,
+  TeamMemberStagePeriod,
+} from '@/hooks/useKPIs'
 import { useDashboardStore } from '@/store/dashboardStore'
+import { useSalesStages, useCustomFields } from '@/store/tenantStore'
 import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
 import { getSalesUsers } from '@/lib/api/collections'
 import { User } from '@/types'
@@ -37,6 +45,10 @@ export function AdminDashboard() {
   const [salesUsers, setSalesUsers] = useState<User[]>([])
   const [selectedSalesPerson, setSelectedSalesPerson] = useState<string>('all')
   const { settings } = useDashboardStore()
+  const salesStages = useSalesStages()
+  const cfConfigs = useCustomFields()
+  const [teamKpiStage, setTeamKpiStage] = useState<string>('')
+  const [teamKpiPeriod, setTeamKpiPeriod] = useState<TeamMemberStagePeriod>('last_month')
 
   // Fetch sales users on mount
   useEffect(() => {
@@ -71,6 +83,22 @@ export function AdminDashboard() {
   const stageData = useStageData(filteredLeads)
   const solutionData = useSolutionData(filteredLeads)
   const topCustomers = useTopCustomers(filteredLeads)
+
+  // Default the team KPI stage selector to the first configured stage, and fall back
+  // to it again if the previously selected stage was renamed/deleted out from under us
+  // (otherwise effectiveTeamKpiStage would point at a stage no longer in salesStages,
+  // leaving the dropdown blank and the table silently empty).
+  const selectedStageStillValid = salesStages.some(s => s.name === teamKpiStage)
+  const effectiveTeamKpiStage = selectedStageStillValid ? teamKpiStage : (salesStages[0]?.name || '')
+  // Respects the same rep filter as the rest of the dashboard (filteredLeads), rather
+  // than aggregating every rep regardless of the "Filter by rep" selection above.
+  const teamMemberStageTotals = useTeamMemberStageKpi(
+    filteredLeads,
+    salesUsers,
+    effectiveTeamKpiStage,
+    teamKpiPeriod,
+    cfConfigs
+  )
 
   if (isLoading) {
     return (
@@ -219,6 +247,69 @@ export function AdminDashboard() {
       {/* Revenue Forecasting */}
       {settings.sections.revenueForecasting && (
         <RevenueForecast leads={filteredLeads} />
+      )}
+
+      {/* Team Member Totals by Stage */}
+      {(settings.sections.teamTotalsByStage ?? true) && (
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 className="text-base font-semibold">Team Totals by Stage</h2>
+          <div className="flex items-center gap-2">
+            <Select value={effectiveTeamKpiStage} onValueChange={setTeamKpiStage}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                {salesStages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.name}>
+                    {stage.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={teamKpiPeriod}
+              onValueChange={(v) => setTeamKpiPeriod(v as TeamMemberStagePeriod)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="last_week">Last Week</SelectItem>
+                <SelectItem value="last_month">Last Month</SelectItem>
+                <SelectItem value="last_two_months">Last 2 Months</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {teamMemberStageTotals.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No leads created by any team member in this stage for the selected period.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b">
+                  <th className="py-2 pr-4 font-medium">Team Member</th>
+                  <th className="py-2 pr-4 font-medium text-right">Total Price</th>
+                  <th className="py-2 font-medium text-right">Leads</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamMemberStageTotals.map((row) => (
+                  <tr key={row.ownerId} className="border-b last:border-0">
+                    <td className="py-2 pr-4">{row.ownerName}</td>
+                    <td className="py-2 pr-4 text-right">{formatCurrency(row.totalPrice)}</td>
+                    <td className="py-2 text-right">{row.leadCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
       )}
 
       {/* Custom Analytics */}

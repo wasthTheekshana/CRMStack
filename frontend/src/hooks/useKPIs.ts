@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
-import { Lead, KPIData, StageData, SolutionData } from '@/types'
+import { Lead, KPIData, StageData, SolutionData, User } from '@/types'
 import { useSalesStages, useWonStages } from '@/store/tenantStore'
+import { getLeadCreatedAt } from '@/lib/utils/leadAge'
+import { periodStartDate, isOnOrAfter, type RelativePeriod } from '@/lib/utils/dateRange'
+import type { CustomFieldConfig } from '@/services/tenantService'
 
 export function useKPIs(leads: Lead[]): KPIData {
   const wonStages = useWonStages()
@@ -100,6 +103,54 @@ export function useSolutionData(leads: Lead[]): SolutionData[] {
       }))
       .sort((a, b) => b.revenue - a.revenue)
   }, [leads])
+}
+
+export type TeamMemberStagePeriod = RelativePeriod
+
+export interface TeamMemberStageTotal {
+  ownerId: string
+  ownerName: string
+  totalPrice: number
+  leadCount: number
+}
+
+export function useTeamMemberStageKpi(
+  leads: Lead[],
+  salesUsers: User[],
+  stage: string,
+  period: TeamMemberStagePeriod,
+  cfConfigs: CustomFieldConfig[]
+): TeamMemberStageTotal[] {
+  return useMemo(() => {
+    if (!stage) return []
+
+    const start = periodStartDate(period)
+    const totals = new Map<string, { totalPrice: number; leadCount: number }>()
+
+    leads.forEach((lead) => {
+      if (lead.salesStage !== stage) return
+      // Use the tenant's configured "created date" field when set (same source
+      // LeadAgeBadge/the Lead Age filter use), not always the raw DB createdAt —
+      // and skip missing/unparseable dates instead of letting Invalid Date
+      // comparisons (always false) count them into every period by default.
+      if (!isOnOrAfter(getLeadCreatedAt(lead, cfConfigs), start)) return
+
+      const existing = totals.get(lead.ownerId) || { totalPrice: 0, leadCount: 0 }
+      totals.set(lead.ownerId, {
+        totalPrice: existing.totalPrice + (lead.estimatedRevenue || 0),
+        leadCount: existing.leadCount + 1,
+      })
+    })
+
+    return Array.from(totals.entries())
+      .map(([ownerId, data]) => ({
+        ownerId,
+        ownerName: salesUsers.find((u) => u.uid === ownerId)?.displayName || 'Unknown',
+        totalPrice: data.totalPrice,
+        leadCount: data.leadCount,
+      }))
+      .sort((a, b) => b.totalPrice - a.totalPrice)
+  }, [leads, salesUsers, stage, period, cfConfigs])
 }
 
 export function useTopCustomers(leads: Lead[], limit = 5) {

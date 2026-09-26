@@ -40,6 +40,21 @@ interface ParsedRow {
   customFields:     Record<string, string>;
 }
 
+// createLead/updateLead (leadModel.ts) only read image/box count, remarks, and HO
+// update from customFields['std_*'] — they no longer accept them as top-level
+// properties. Import rows still carry them as top-level ParsedRow fields, so they
+// must be folded into customFields here or every imported lead silently gets
+// zeroed/blank values for these fields regardless of what the spreadsheet had.
+function mergeLegacyIntoCustomFields(data: ParsedRow): Record<string, unknown> {
+  return {
+    ...data.customFields,
+    std_image_count: data.imageCount,
+    std_box_count:   data.boxCount,
+    std_remarks:     data.remarks,
+    std_ho_update:   data.hoUpdate,
+  };
+}
+
 // ─── Helper: parse and validate a single row ──────────────────────────────────
 
 async function parseRow(
@@ -281,7 +296,7 @@ export async function importConfirm(req: Request, res: Response) {
             companyId,
             position:     null,
             tenantId,
-            customFields: row.data.customFields ?? {},
+            customFields: mergeLegacyIntoCustomFields(row.data),
           });
           // Create contact records in the contacts table so they appear on the Contacts page.
           // Skip contacts with no name. Use INSERT ... ON CONFLICT DO NOTHING to avoid
@@ -303,7 +318,10 @@ export async function importConfirm(req: Request, res: Response) {
           created++;
         } else if (row.action === 'update') {
           if (row.existingId) {
-            const result = await updateLead(row.existingId, tenantId, row.data);
+            const result = await updateLead(row.existingId, tenantId, {
+              ...row.data,
+              customFields: mergeLegacyIntoCustomFields(row.data),
+            });
             if (!result) {
               errors.push({ row: row.index, reason: 'Lead not found or access denied' });
             } else {

@@ -92,6 +92,13 @@ export async function updateConfig(req: Request, res: Response) {
         res.status(400).json({ error: `Widget "${w.name}" requires a field_id` })
         return
       }
+      // A group_by widget without group_by_field falls into kpiController's scalar
+      // branch at read time and returns {value} instead of an array — the frontend's
+      // bar/pie/table renderers require an array, so it renders empty with no error.
+      if (w.type === 'group_by' && !w.group_by_field) {
+        res.status(400).json({ error: `Widget "${w.name}" requires a "Group By" field` })
+        return
+      }
     }
   }
 

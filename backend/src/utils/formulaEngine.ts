@@ -166,8 +166,8 @@ export function evaluate(ast: ASTNode, values: Record<string, number>): number {
       switch (ast.name) {
         case 'ROUND': return parseFloat(args[0].toFixed(args[1] ?? 0))
         case 'ABS':   return Math.abs(args[0])
-        case 'MIN':   return Math.min(args[0], args[1])
-        case 'MAX':   return Math.max(args[0], args[1])
+        case 'MIN':   return Math.min(...args)
+        case 'MAX':   return Math.max(...args)
         default: throw new Error(`Unknown function: ${ast.name}`)
       }
     }

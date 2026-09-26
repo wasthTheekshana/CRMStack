@@ -72,6 +72,9 @@ async function validateRequiredCustomFields(
   if (!config) return null
   for (const field of config.customFields) {
     if (!field.required) continue
+    // Formula fields are computed server-side after validation runs (evaluateFormulaFields),
+    // so they never have a value at this point — skip them here, not just client-side.
+    if (field.type === 'formula') continue
     const value = customFields[field.id]
     const isEmpty =
       value == null ||
@@ -98,10 +101,16 @@ async function evaluateFormulaFields(
   const result = { ...customFields }
   const numericValues: Record<string, number> = {}
 
-  // Collect all numeric values
+  // Only fields declared as 'number' or 'formula' are valid formula inputs — otherwise
+  // a text field that happens to hold a numeric-looking string (e.g. a reference number)
+  // would silently leak into formula scope with no validation error.
+  const numericFieldIds = new Set(
+    config.customFields.filter(f => f.type === 'number' || f.type === 'formula').map(f => f.id)
+  )
   for (const [key, val] of Object.entries(result)) {
+    if (!numericFieldIds.has(key)) continue
     if (typeof val === 'number') numericValues[key] = val
-    else if (typeof val === 'string' && !isNaN(Number(val))) numericValues[key] = Number(val)
+    else if (typeof val === 'string' && !isNaN(Number(val)) && val.trim() !== '') numericValues[key] = Number(val)
   }
 
   // Evaluate formulas in topological order

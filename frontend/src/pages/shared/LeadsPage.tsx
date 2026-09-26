@@ -22,6 +22,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -45,10 +51,15 @@ import { ExpiryBadge } from '@/components/leads/ExpiryBadge'
 import { LeadAgeBadge } from '@/components/leads/LeadAgeBadge'
 import { getLeadAgeDays, getLeadCreatedAt } from '@/lib/utils/leadAge'
 import { getSavedViews, createSavedView, deleteSavedView, type SavedView } from '@/services/savedViewService'
+import { getSalesUsers } from '@/lib/api/collections'
+import type { User } from '@/types'
+import { periodStartDate, isOnOrAfter, type RelativePeriod } from '@/lib/utils/dateRange'
+
+type TimelineFilter = 'all' | RelativePeriod
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [stageFilter, setStageFilter] = useState<string>('all')
+  const [stageFilters, setStageFilters] = useState<string[]>([]) // empty = all stages
   const [solutionFilter, setSolutionFilter] = useState<string>('all')
   const [showNewLeadForm, setShowNewLeadForm] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -57,6 +68,9 @@ export function LeadsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [ageFilter, setAgeFilter] = useState<string>('all')      // admin only
   const [expiryFilter, setExpiryFilter] = useState<string>('all') // admin only
+  const [ownerFilter, setOwnerFilter] = useState<string>('all')       // admin only
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all') // admin only
+  const [salesUsers, setSalesUsers] = useState<User[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [bulkActionKey, setBulkActionKey] = useState(0)
@@ -80,14 +94,24 @@ export function LeadsPage() {
       .catch(() => {/* silently ignore */})
   }, [])
 
+  // Fetch sales users on mount (admin only, for the owner filter)
+  useEffect(() => {
+    if (!isAdmin) return
+    getSalesUsers()
+      .then(setSalesUsers)
+      .catch(() => {/* silently ignore */})
+  }, [isAdmin])
+
   // Current filter snapshot for saving views
   const currentFilters = useMemo(() => ({
     searchTerm,
-    stageFilter,
+    stageFilters,
     solutionFilter,
     ageFilter,
     expiryFilter,
-  }), [searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter])
+    ownerFilter,
+    timelineFilter,
+  }), [searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, ownerFilter, timelineFilter])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -102,6 +126,8 @@ export function LeadsPage() {
 
   // Filter leads
   const filteredLeads = useMemo(() => {
+    const timelineStart = timelineFilter === 'all' ? null : periodStartDate(timelineFilter)
+
     return leads.filter((lead) => {
       const primaryContact = lead.contacts?.find(c => c.isPrimary) || lead.contacts?.[0]
       const contactName = primaryContact?.name || lead.contactName || ''
@@ -111,10 +137,14 @@ export function LeadsPage() {
         contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.solution.toLowerCase().includes(searchTerm.toLowerCase())
 
-      const matchesStage = stageFilter === 'all' || lead.salesStage === stageFilter
+      const matchesStages = stageFilters.length === 0 || stageFilters.includes(lead.salesStage)
       const matchesSolution = solutionFilter === 'all' || lead.solution === solutionFilter
 
-      const matchesAge = ageFilter === 'all' || getLeadAgeDays(getLeadCreatedAt(lead, cfConfigs)) >= parseInt(ageFilter)
+      // Computed once and reused below — getLeadCreatedAt scans cfConfigs for a
+      // matching date field, no need to pay that scan twice per lead.
+      const leadCreatedAt = getLeadCreatedAt(lead, cfConfigs)
+
+      const matchesAge = ageFilter === 'all' || getLeadAgeDays(leadCreatedAt) >= parseInt(ageFilter)
 
       const expiryData = expiryMap[lead.id]
       const matchesExpiry =
@@ -123,9 +153,32 @@ export function LeadsPage() {
         (expiryFilter === 'expiring7' && expiryData !== undefined && expiryData.daysUntil >= 0 && expiryData.daysUntil <= 7) ||
         (expiryFilter === 'none' && expiryData === undefined)
 
-      return matchesSearch && matchesStage && matchesSolution && matchesAge && matchesExpiry
+      const matchesOwner = ownerFilter === 'all' || lead.ownerId === ownerFilter
+
+      // Same tenant-aware creation date as the Lead Age filter above, not the raw DB
+      // createdAt — otherwise the two filters disagree for tenants that override
+      // creation date via a custom field.
+      const matchesTimeline = !timelineStart || isOnOrAfter(leadCreatedAt, timelineStart)
+
+      return matchesSearch && matchesStages && matchesSolution && matchesAge && matchesExpiry &&
+        matchesOwner && matchesTimeline
     })
-  }, [leads, searchTerm, stageFilter, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs])
+  }, [leads, searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs, ownerFilter, timelineFilter])
+
+  // Totals for the currently filtered leads (admin-only summary, most useful when an owner is selected)
+  const filteredTotals = useMemo(() => {
+    const totalValue = filteredLeads.reduce((sum, l) => sum + (l.estimatedRevenue || 0), 0)
+    const weightedRevenue = filteredLeads.reduce(
+      (sum, l) => sum + ((l.estimatedRevenue || 0) * (l.probability || 0)) / 100,
+      0
+    )
+    return { totalLeads: filteredLeads.length, totalValue, weightedRevenue }
+  }, [filteredLeads])
+
+  const ownerFilterName = useMemo(() => {
+    if (ownerFilter === 'all') return null
+    return salesUsers.find(u => u.uid === ownerFilter)?.displayName || 'Unknown'
+  }, [ownerFilter, salesUsers])
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead)
@@ -133,17 +186,19 @@ export function LeadsPage() {
   }
 
   const clearFilters = () => {
-    setStageFilter('all')
+    setStageFilters([])
     setSolutionFilter('all')
     setSearchTerm('')
     setAgeFilter('all')
     setExpiryFilter('all')
+    setOwnerFilter('all')
+    setTimelineFilter('all')
     setSelectedIds(new Set())
   }
 
   const hasActiveFilters =
-    stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== '' ||
-    ageFilter !== 'all' || expiryFilter !== 'all'
+    stageFilters.length > 0 || solutionFilter !== 'all' || searchTerm !== '' ||
+    ageFilter !== 'all' || expiryFilter !== 'all' || ownerFilter !== 'all' || timelineFilter !== 'all'
 
   const handleSaveView = async () => {
     if (!saveViewName.trim()) return
@@ -165,10 +220,20 @@ export function LeadsPage() {
   const handleLoadView = (view: SavedView) => {
     const f = view.filters
     setSearchTerm(typeof f.searchTerm === 'string' ? f.searchTerm : '')
-    setStageFilter(typeof f.stageFilter === 'string' ? f.stageFilter : 'all')
+    setStageFilters(
+      Array.isArray(f.stageFilters)
+        ? f.stageFilters.filter((s): s is string => typeof s === 'string')
+        : typeof f.stageFilter === 'string' && f.stageFilter !== 'all'
+          ? [f.stageFilter] // back-compat with views saved before multi-select
+          : []
+    )
     setSolutionFilter(typeof f.solutionFilter === 'string' ? f.solutionFilter : 'all')
     setAgeFilter(typeof f.ageFilter === 'string' ? f.ageFilter : 'all')
     setExpiryFilter(typeof f.expiryFilter === 'string' ? f.expiryFilter : 'all')
+    setOwnerFilter(typeof f.ownerFilter === 'string' ? f.ownerFilter : 'all')
+    setTimelineFilter(
+      typeof f.timelineFilter === 'string' ? (f.timelineFilter as TimelineFilter) : 'all'
+    )
     setActiveViewId(view.id)
   }
 
@@ -183,6 +248,20 @@ export function LeadsPage() {
       toast.error('Failed to delete view')
     }
   }
+
+  const toggleStageFilter = (stageName: string) => {
+    setStageFilters(prev =>
+      prev.includes(stageName) ? prev.filter(s => s !== stageName) : [...prev, stageName]
+    )
+    setSelectedIds(new Set())
+  }
+
+  const stageFilterLabel =
+    stageFilters.length === 0
+      ? 'All Stages'
+      : stageFilters.length === 1
+        ? stageFilters[0]
+        : `${stageFilters.length} stages`
 
   const toggleSelect = (id: string) =>
     setSelectedIds(prev => {
@@ -285,19 +364,25 @@ export function LeadsPage() {
               <div className="space-y-4 mt-6">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Sales Stage</label>
-                  <Select value={stageFilter} onValueChange={v => { setStageFilter(v); setSelectedIds(new Set()) }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Stages" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Stages</SelectItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start font-normal">
+                        {stageFilterLabel}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[240px]">
                       {salesStages.map((stage) => (
-                        <SelectItem key={stage.name} value={stage.name}>
+                        <DropdownMenuCheckboxItem
+                          key={stage.id}
+                          checked={stageFilters.includes(stage.name)}
+                          onCheckedChange={() => toggleStageFilter(stage.name)}
+                          onSelect={e => e.preventDefault()}
+                        >
                           {stage.name}
-                        </SelectItem>
+                        </DropdownMenuCheckboxItem>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Solution</label>
@@ -317,6 +402,39 @@ export function LeadsPage() {
                 </div>
                 {isAdmin && (
                   <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Team Member</label>
+                      <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setSelectedIds(new Set()) }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Team Members" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Team Members</SelectItem>
+                          {salesUsers.map((user) => (
+                            <SelectItem key={user.uid} value={user.uid}>
+                              {user.displayName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Timeline</label>
+                      <Select
+                        value={timelineFilter}
+                        onValueChange={v => { setTimelineFilter(v as TimelineFilter); setSelectedIds(new Set()) }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Time</SelectItem>
+                          <SelectItem value="last_week">Last Week</SelectItem>
+                          <SelectItem value="last_month">Last Month</SelectItem>
+                          <SelectItem value="last_two_months">Last 2 Months</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5" /> Lead Age
@@ -364,19 +482,26 @@ export function LeadsPage() {
 
         {/* Desktop filters */}
         <div className="hidden md:flex gap-3 flex-wrap">
-          <Select value={stageFilter} onValueChange={v => { setStageFilter(v); setSelectedIds(new Set()) }}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Filter by stage" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Stages</SelectItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[160px] justify-start font-normal">
+                <Tags className="h-3.5 w-3.5 mr-1.5" />
+                {stageFilterLabel}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[220px]">
               {salesStages.map((stage) => (
-                <SelectItem key={stage.name} value={stage.name}>
+                <DropdownMenuCheckboxItem
+                  key={stage.id}
+                  checked={stageFilters.includes(stage.name)}
+                  onCheckedChange={() => toggleStageFilter(stage.name)}
+                  onSelect={e => e.preventDefault()}
+                >
                   {stage.name}
-                </SelectItem>
+                </DropdownMenuCheckboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Select value={solutionFilter} onValueChange={v => { setSolutionFilter(v); setSelectedIds(new Set()) }}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter by solution" />
@@ -392,6 +517,33 @@ export function LeadsPage() {
           </Select>
           {isAdmin && (
             <>
+              <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setSelectedIds(new Set()) }}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Filter by team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Team Members</SelectItem>
+                  {salesUsers.map((user) => (
+                    <SelectItem key={user.uid} value={user.uid}>
+                      {user.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={timelineFilter}
+                onValueChange={v => { setTimelineFilter(v as TimelineFilter); setSelectedIds(new Set()) }}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="All Time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="last_week">Last Week</SelectItem>
+                  <SelectItem value="last_month">Last Month</SelectItem>
+                  <SelectItem value="last_two_months">Last 2 Months</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={ageFilter} onValueChange={v => { setAgeFilter(v); setSelectedIds(new Set()) }}>
                 <SelectTrigger className="w-[160px]">
                   <Clock className="h-3.5 w-3.5 mr-1.5" />
@@ -427,6 +579,30 @@ export function LeadsPage() {
           )}
         </div>
       </div>
+
+      {/* Team member totals - admin only, shown once a team member is selected */}
+      {isAdmin && ownerFilter !== 'all' && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-lg border bg-card px-4 py-3">
+          <Badge variant="secondary" className="gap-1 w-fit">
+            <Filter className="h-3 w-3" />
+            {ownerFilterName}
+          </Badge>
+          <div className="flex items-center gap-4 text-sm flex-wrap">
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">Leads:</span>
+              <span className="font-semibold">{filteredTotals.totalLeads}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">Total Value:</span>
+              <span className="font-semibold text-blue-600">{formatCurrency(filteredTotals.totalValue)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">Weighted Revenue:</span>
+              <span className="font-semibold text-green-600">{formatCurrency(filteredTotals.weightedRevenue)}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Results count + select-all */}
       <div className="flex items-center gap-3">
