@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import {
@@ -92,7 +93,7 @@ function FieldGroupSection({
       {!collapsed && (
         <div className="p-4 grid grid-cols-2 gap-4">
           {fields.map((cf) => (
-            <div key={cf.id} className={cn('space-y-2', (cf.type === 'text' || cf.type === 'formula') && 'col-span-2')}>
+            <div key={cf.id} className={cn('space-y-2', (cf.type === 'text' || cf.type === 'textarea' || cf.type === 'formula') && 'col-span-2')}>
               <Label htmlFor={`cf_${cf.id}`}>
                 {cf.name}
                 {cf.required && <span className="text-destructive ml-1">*</span>}
@@ -105,6 +106,16 @@ function FieldGroupSection({
                   <span className="italic text-xs text-muted-foreground mr-2">[computed]</span>
                   {customFieldValues[cf.id] ?? '—'}
                 </div>
+              )}
+
+              {cf.type === 'textarea' && (
+                <Textarea
+                  id={`cf_${cf.id}`}
+                  value={customFieldValues[cf.id] ?? ''}
+                  onChange={e => setCustomFieldValues(p => ({ ...p, [cf.id]: e.target.value }))}
+                  disabled={isLoading}
+                  className="min-h-[100px] resize-y"
+                />
               )}
 
               {cf.type === 'text' && (

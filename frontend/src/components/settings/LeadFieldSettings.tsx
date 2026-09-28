@@ -24,7 +24,7 @@ interface LeadFieldSettingsProps {
   onSave:              () => void
 }
 
-const FIELD_TYPES = ['text', 'number', 'select', 'date', 'checkbox', 'formula'] as const
+const FIELD_TYPES = ['text', 'textarea', 'number', 'select', 'date', 'checkbox', 'formula'] as const
 
 function generateId(prefix = 'cf') {
   return `${prefix}${Date.now()}`

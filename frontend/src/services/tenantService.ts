@@ -17,7 +17,7 @@ export interface SolutionConfig {
 export interface FieldConfig {
   id:         string
   name:       string
-  type:       'text' | 'number' | 'select' | 'date' | 'checkbox' | 'formula'
+  type:       'text' | 'textarea' | 'number' | 'select' | 'date' | 'checkbox' | 'formula'
   required:   boolean
   options:    string[]
   group?:     string
