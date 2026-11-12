@@ -9,6 +9,7 @@ export const defaultDashboardSettings: DashboardSettings = {
     activeDeals: true,
     totalRevenue: true,
     weighted: true,
+    grossProfit: true,
   },
   sections: {
     pipelineByStage: true,
@@ -24,6 +25,24 @@ export const defaultDashboardSettings: DashboardSettings = {
     salesTargets: true,
     quarterlyTargets: true,
   },
+}
+
+// Saved settings can be missing keys: the server returns empty objects for a user who
+// has never saved, and settings saved before a card/section existed lack its key.
+// Filling the gaps from the defaults means a missing key can never hide a card, section
+// or menu item; an explicit `false` the user saved still wins.
+export function mergeWithDefaultSettings(
+  saved: Partial<DashboardSettings> | null | undefined
+): DashboardSettings {
+  return {
+    kpiCards: { ...defaultDashboardSettings.kpiCards, ...(saved?.kpiCards ?? {}) },
+    sections: { ...defaultDashboardSettings.sections, ...(saved?.sections ?? {}) },
+    navigation: {
+      salesTargets: true,
+      quarterlyTargets: true,
+      ...(saved?.navigation ?? {}),
+    },
+  }
 }
 
 interface DashboardStore {
@@ -44,7 +63,7 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
   isCustomizing: false,
   isLoading: false,
 
-  setSettings: (settings) => set({ settings }),
+  setSettings: (settings) => set({ settings: mergeWithDefaultSettings(settings) }),
 
   updateKpiCard: (key, value) =>
     set((state) => ({

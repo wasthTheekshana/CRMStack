@@ -54,8 +54,25 @@ import { getSavedViews, createSavedView, deleteSavedView, type SavedView } from 
 import { getSalesUsers } from '@/lib/api/collections'
 import type { User } from '@/types'
 import { periodStartDate, isOnOrAfter, type RelativePeriod } from '@/lib/utils/dateRange'
+import {
+  EMPTY_DATE_RANGE,
+  findCustomFieldByName,
+  isDateRangeActive,
+  isLeadDateInRange,
+  sumNumberField,
+  type DateRange,
+} from '@/lib/utils/leadFilters'
+import { DateRangeFilter } from '@/components/leads/DateRangeFilter'
 
 type TimelineFilter = 'all' | RelativePeriod
+
+// Saved views store filters as free-form JSON, so validate before trusting a saved range.
+function toDateRange(value: unknown): DateRange {
+  const v = value as Partial<DateRange> | null | undefined
+  return v && typeof v.from === 'string' && typeof v.to === 'string'
+    ? { from: v.from, to: v.to }
+    : EMPTY_DATE_RANGE
+}
 
 export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -70,6 +87,8 @@ export function LeadsPage() {
   const [expiryFilter, setExpiryFilter] = useState<string>('all') // admin only
   const [ownerFilter, setOwnerFilter] = useState<string>('all')       // admin only
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all') // admin only
+  const [submissionRange, setSubmissionRange] = useState<DateRange>(EMPTY_DATE_RANGE)
+  const [awardedRange, setAwardedRange] = useState<DateRange>(EMPTY_DATE_RANGE)
   const [salesUsers, setSalesUsers] = useState<User[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -85,6 +104,10 @@ export function LeadsPage() {
   const salesStages = useSalesStages()
   const getStageColor = useStageColor()
   const cfConfigs = useCustomFields()
+  // Workspace-specific fields, found by name. A filter only shows up if its field exists.
+  const submissionField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of submission', 'date'), [cfConfigs])
+  const awardedField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of awarded', 'date'), [cfConfigs])
+  const grossProfitField = useMemo(() => findCustomFieldByName(cfConfigs, 'Gross Profit', 'number'), [cfConfigs])
   const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
 
   // Load saved views on mount
@@ -111,7 +134,9 @@ export function LeadsPage() {
     expiryFilter,
     ownerFilter,
     timelineFilter,
-  }), [searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, ownerFilter, timelineFilter])
+    submissionRange,
+    awardedRange,
+  }), [searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, ownerFilter, timelineFilter, submissionRange, awardedRange])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -160,10 +185,14 @@ export function LeadsPage() {
       // creation date via a custom field.
       const matchesTimeline = !timelineStart || isOnOrAfter(leadCreatedAt, timelineStart)
 
+      const matchesSubmission = isLeadDateInRange(lead, submissionField, submissionRange)
+      const matchesAwarded = isLeadDateInRange(lead, awardedField, awardedRange)
+
       return matchesSearch && matchesStages && matchesSolution && matchesAge && matchesExpiry &&
-        matchesOwner && matchesTimeline
+        matchesOwner && matchesTimeline && matchesSubmission && matchesAwarded
     })
-  }, [leads, searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs, ownerFilter, timelineFilter])
+  }, [leads, searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs, ownerFilter, timelineFilter,
+    submissionField, submissionRange, awardedField, awardedRange])
 
   // Totals for the currently filtered leads (admin-only summary, most useful when an owner is selected)
   const filteredTotals = useMemo(() => {
@@ -172,8 +201,10 @@ export function LeadsPage() {
       (sum, l) => sum + ((l.estimatedRevenue || 0) * (l.probability || 0)) / 100,
       0
     )
-    return { totalLeads: filteredLeads.length, totalValue, weightedRevenue }
-  }, [filteredLeads])
+    // null when the workspace has no Gross Profit field, so the strip can hide that figure
+    const totalProfit = grossProfitField ? sumNumberField(filteredLeads, grossProfitField).total : null
+    return { totalLeads: filteredLeads.length, totalValue, weightedRevenue, totalProfit }
+  }, [filteredLeads, grossProfitField])
 
   const ownerFilterName = useMemo(() => {
     if (ownerFilter === 'all') return null
@@ -193,12 +224,15 @@ export function LeadsPage() {
     setExpiryFilter('all')
     setOwnerFilter('all')
     setTimelineFilter('all')
+    setSubmissionRange(EMPTY_DATE_RANGE)
+    setAwardedRange(EMPTY_DATE_RANGE)
     setSelectedIds(new Set())
   }
 
   const hasActiveFilters =
     stageFilters.length > 0 || solutionFilter !== 'all' || searchTerm !== '' ||
-    ageFilter !== 'all' || expiryFilter !== 'all' || ownerFilter !== 'all' || timelineFilter !== 'all'
+    ageFilter !== 'all' || expiryFilter !== 'all' || ownerFilter !== 'all' || timelineFilter !== 'all' ||
+    isDateRangeActive(submissionRange) || isDateRangeActive(awardedRange)
 
   const handleSaveView = async () => {
     if (!saveViewName.trim()) return
@@ -234,6 +268,8 @@ export function LeadsPage() {
     setTimelineFilter(
       typeof f.timelineFilter === 'string' ? (f.timelineFilter as TimelineFilter) : 'all'
     )
+    setSubmissionRange(toDateRange(f.submissionRange))
+    setAwardedRange(toDateRange(f.awardedRange))
     setActiveViewId(view.id)
   }
 
@@ -400,6 +436,22 @@ export function LeadsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {submissionField && (
+                  <DateRangeFilter
+                    stacked
+                    label="Date of submission"
+                    value={submissionRange}
+                    onChange={r => { setSubmissionRange(r); setSelectedIds(new Set()) }}
+                  />
+                )}
+                {awardedField && (
+                  <DateRangeFilter
+                    stacked
+                    label="Date of awarded"
+                    value={awardedRange}
+                    onChange={r => { setAwardedRange(r); setSelectedIds(new Set()) }}
+                  />
+                )}
                 {isAdmin && (
                   <>
                     <div className="space-y-2">
@@ -571,6 +623,20 @@ export function LeadsPage() {
               </Select>
             </>
           )}
+          {submissionField && (
+            <DateRangeFilter
+              label="Date of submission"
+              value={submissionRange}
+              onChange={r => { setSubmissionRange(r); setSelectedIds(new Set()) }}
+            />
+          )}
+          {awardedField && (
+            <DateRangeFilter
+              label="Date of awarded"
+              value={awardedRange}
+              onChange={r => { setAwardedRange(r); setSelectedIds(new Set()) }}
+            />
+          )}
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               <X className="h-4 w-4 mr-1" />
@@ -580,12 +646,12 @@ export function LeadsPage() {
         </div>
       </div>
 
-      {/* Team member totals - admin only, shown once a team member is selected */}
-      {isAdmin && ownerFilter !== 'all' && (
+      {/* Totals for whatever is currently filtered (team member, dates, stage, ...) */}
+      {hasActiveFilters && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-lg border bg-card px-4 py-3">
           <Badge variant="secondary" className="gap-1 w-fit">
             <Filter className="h-3 w-3" />
-            {ownerFilterName}
+            {isAdmin && ownerFilter !== 'all' ? ownerFilterName : 'Filtered results'}
           </Badge>
           <div className="flex items-center gap-4 text-sm flex-wrap">
             <div className="flex items-center gap-1">
@@ -593,9 +659,15 @@ export function LeadsPage() {
               <span className="font-semibold">{filteredTotals.totalLeads}</span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Total Value:</span>
+              <span className="text-muted-foreground">Pipeline Value:</span>
               <span className="font-semibold text-blue-600">{formatCurrency(filteredTotals.totalValue)}</span>
             </div>
+            {filteredTotals.totalProfit !== null && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Profit Value:</span>
+                <span className="font-semibold text-purple-600">{formatCurrency(filteredTotals.totalProfit)}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Weighted Revenue:</span>
               <span className="font-semibold text-green-600">{formatCurrency(filteredTotals.weightedRevenue)}</span>

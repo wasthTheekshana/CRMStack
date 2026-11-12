@@ -7,6 +7,7 @@ import {
   Target,
   Loader2,
   Filter,
+  Coins,
 } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { TopCustomers } from '@/components/dashboard/TopCustomers'
@@ -20,6 +21,7 @@ import { BubbleChart } from '@/components/charts/BubbleChart'
 import { useLeads } from '@/hooks/useLeads'
 import {
   useKPIs,
+  useGrossProfit,
   useStageData,
   useSolutionData,
   useTopCustomers,
@@ -80,6 +82,7 @@ export function AdminDashboard() {
 
   // Calculate KPIs and data based on filtered leads
   const kpis = useKPIs(filteredLeads)
+  const grossProfit = useGrossProfit(filteredLeads)
   const stageData = useStageData(filteredLeads)
   const solutionData = useSolutionData(filteredLeads)
   const topCustomers = useTopCustomers(filteredLeads)
@@ -109,7 +112,11 @@ export function AdminDashboard() {
   }
 
   // Check if any KPI cards are visible
-  const hasVisibleKpis = Object.values(settings.kpiCards).some(Boolean)
+  // Gross Profit is shown only if the workspace has that field, and (since older saved
+  // settings don't have the key) it counts as visible unless explicitly switched off.
+  const showGrossProfit = grossProfit.available && settings.kpiCards.grossProfit !== false
+  const { grossProfit: _grossProfitSetting, ...baseKpiSettings } = settings.kpiCards
+  const hasVisibleKpis = Object.values(baseKpiSettings).some(Boolean) || showGrossProfit
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -160,7 +167,11 @@ export function AdminDashboard() {
 
       {/* KPI Cards - responsive grid */}
       {hasVisibleKpis && (
-        <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div
+          className={`grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 ${
+            showGrossProfit ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
+          }`}
+        >
           {settings.kpiCards.companies && (
             <KPICard
               title="Companies"
@@ -201,6 +212,15 @@ export function AdminDashboard() {
               subtitle={`${kpis.avgProbability.toFixed(0)}% avg`}
               icon={<TrendingUp className="h-5 w-5 md:h-6 md:w-6" />}
               colorScheme="green"
+            />
+          )}
+          {showGrossProfit && (
+            <KPICard
+              title="Gross Profit"
+              value={formatCompactNumber(grossProfit.total)}
+              subtitle={formatCurrency(grossProfit.total)}
+              icon={<Coins className="h-5 w-5 md:h-6 md:w-6" />}
+              colorScheme="purple"
             />
           )}
         </div>

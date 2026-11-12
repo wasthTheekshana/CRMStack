@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { Lead, KPIData, StageData, SolutionData, User } from '@/types'
-import { useSalesStages, useWonStages } from '@/store/tenantStore'
+import { useSalesStages, useWonStages, useCustomFields } from '@/store/tenantStore'
 import { getLeadCreatedAt } from '@/lib/utils/leadAge'
 import { periodStartDate, isOnOrAfter, type RelativePeriod } from '@/lib/utils/dateRange'
 import type { CustomFieldConfig } from '@/services/tenantService'
+import { findCustomFieldByName, sumNumberField } from '@/lib/utils/leadFilters'
 
 export function useKPIs(leads: Lead[]): KPIData {
   const wonStages = useWonStages()
@@ -62,6 +63,31 @@ export function useKPIs(leads: Lead[]): KPIData {
       avgProbability,
     }
   }, [leads, wonStages])
+}
+
+export interface GrossProfitKPI {
+  /** True when the workspace has a number custom field named "Gross Profit". */
+  available: boolean
+  /** Sum of that field across the given leads (blank/non-numeric values count as 0). */
+  total: number
+  /** How many of the given leads actually have a value in that field. */
+  leadsWithValue: number
+}
+
+// Custom field ids are generated per workspace, so the field is found by name.
+export function findGrossProfitField(customFields: CustomFieldConfig[]): CustomFieldConfig | undefined {
+  return findCustomFieldByName(customFields, 'Gross Profit', 'number')
+}
+
+export function useGrossProfit(leads: Lead[]): GrossProfitKPI {
+  const customFields = useCustomFields()
+  return useMemo(() => {
+    const field = findGrossProfitField(customFields)
+    if (!field) return { available: false, total: 0, leadsWithValue: 0 }
+
+    const { total, leadsWithValue } = sumNumberField(leads, field)
+    return { available: true, total, leadsWithValue }
+  }, [leads, customFields])
 }
 
 export function useStageData(leads: Lead[]): StageData[] {

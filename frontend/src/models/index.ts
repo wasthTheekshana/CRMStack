@@ -136,6 +136,8 @@ export interface DashboardSettings {
     activeDeals: boolean
     totalRevenue: boolean
     weighted: boolean
+    // Optional: older saved settings don't have it. Treated as visible unless false.
+    grossProfit?: boolean
   }
   sections: {
     pipelineByStage: boolean

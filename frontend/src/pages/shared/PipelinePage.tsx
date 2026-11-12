@@ -15,6 +15,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { useCustomFields } from '@/store/tenantStore'
+import {
+  EMPTY_DATE_RANGE,
+  findCustomFieldByName,
+  isDateRangeActive,
+  isLeadDateInRange,
+  sumNumberField,
+  type DateRange,
+} from '@/lib/utils/leadFilters'
+import { DateRangeFilter } from '@/components/leads/DateRangeFilter'
 
 export function PipelinePage() {
   const [showNewLeadForm, setShowNewLeadForm] = useState(false)
@@ -22,6 +32,14 @@ export function PipelinePage() {
   const isAdmin = useIsAdmin()
   const [salesUsers, setSalesUsers] = useState<User[]>([])
   const [selectedSalesPerson, setSelectedSalesPerson] = useState<string>('all')
+  const [submissionRange, setSubmissionRange] = useState<DateRange>(EMPTY_DATE_RANGE)
+  const [awardedRange, setAwardedRange] = useState<DateRange>(EMPTY_DATE_RANGE)
+  const cfConfigs = useCustomFields()
+  // Workspace-specific fields, found by name. A filter only shows up if its field exists.
+  const submissionField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of submission', 'date'), [cfConfigs])
+  const awardedField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of awarded', 'date'), [cfConfigs])
+  const grossProfitField = useMemo(() => findCustomFieldByName(cfConfigs, 'Gross Profit', 'number'), [cfConfigs])
+  const dateFiltersActive = isDateRangeActive(submissionRange) || isDateRangeActive(awardedRange)
 
   // Fetch sales users on mount (only for admin)
   useEffect(() => {
@@ -37,13 +55,17 @@ export function PipelinePage() {
     fetchSalesUsers()
   }, [isAdmin])
 
-  // Filter leads by selected salesperson
+  // Filter leads by selected salesperson and the submission / awarded date ranges
   const filteredLeads = useMemo(() => {
-    if (!isAdmin || selectedSalesPerson === 'all') {
-      return leads
-    }
-    return leads.filter(lead => lead.ownerId === selectedSalesPerson)
-  }, [leads, selectedSalesPerson, isAdmin])
+    const byOwner = !isAdmin || selectedSalesPerson === 'all'
+      ? leads
+      : leads.filter(lead => lead.ownerId === selectedSalesPerson)
+    if (!dateFiltersActive) return byOwner
+    return byOwner.filter(lead =>
+      isLeadDateInRange(lead, submissionField, submissionRange) &&
+      isLeadDateInRange(lead, awardedField, awardedRange)
+    )
+  }, [leads, selectedSalesPerson, isAdmin, dateFiltersActive, submissionField, submissionRange, awardedField, awardedRange])
 
   // Get selected salesperson name for display
   const selectedSalesPersonName = useMemo(() => {
@@ -60,8 +82,10 @@ export function PipelinePage() {
       (sum, l) => sum + ((l.estimatedRevenue || 0) * (l.probability || 0)) / 100,
       0
     )
-    return { totalDeals, totalRevenue, weightedRevenue }
-  }, [filteredLeads])
+    // null when the workspace has no Gross Profit field, so the bar can hide that figure
+    const totalProfit = grossProfitField ? sumNumberField(filteredLeads, grossProfitField).total : null
+    return { totalDeals, totalRevenue, weightedRevenue, totalProfit }
+  }, [filteredLeads, grossProfitField])
 
   if (isLoading) {
     return (
@@ -117,8 +141,20 @@ export function PipelinePage() {
         </div>
       </div>
 
-      {/* Active Filter Badge & Stats */}
-      {isAdmin && (
+      {/* Date filters - only shown when the workspace has the matching date fields */}
+      {(submissionField || awardedField) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {submissionField && (
+            <DateRangeFilter label="Date of submission" value={submissionRange} onChange={setSubmissionRange} />
+          )}
+          {awardedField && (
+            <DateRangeFilter label="Date of awarded" value={awardedRange} onChange={setAwardedRange} />
+          )}
+        </div>
+      )}
+
+      {/* Active Filter Badge & Stats (admins always; everyone while a date filter is on) */}
+      {(isAdmin || dateFiltersActive) && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <div className="flex items-center gap-2 flex-wrap">
             {selectedSalesPerson !== 'all' && (
@@ -142,9 +178,15 @@ export function PipelinePage() {
               <span className="font-semibold">{pipelineStats.totalDeals}</span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Pipeline:</span>
+              <span className="text-muted-foreground">Pipeline Value:</span>
               <span className="font-semibold text-blue-600">{formatCurrency(pipelineStats.totalRevenue)}</span>
             </div>
+            {pipelineStats.totalProfit !== null && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Profit Value:</span>
+                <span className="font-semibold text-purple-600">{formatCurrency(pipelineStats.totalProfit)}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Weighted:</span>
               <span className="font-semibold text-green-600">{formatCurrency(pipelineStats.weightedRevenue)}</span>

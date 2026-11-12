@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/sheet'
 import { useDashboardStore, defaultDashboardSettings } from '@/store/dashboardStore'
 import { useAuthStore } from '@/store/authStore'
+import { useCustomFields } from '@/store/tenantStore'
+import { findGrossProfitField } from '@/hooks/useKPIs'
 import { getDashboardSettings, saveDashboardSettings } from '@/lib/api/collections'
 import { DashboardSettings } from '@/types'
 
@@ -33,6 +35,7 @@ const KPI_LABELS: Record<keyof DashboardSettings['kpiCards'], string> = {
   activeDeals: 'Active Deals',
   totalRevenue: 'Total Revenue',
   weighted: 'Weighted Revenue',
+  grossProfit: 'Gross Profit',
 }
 
 const SECTION_LABELS: Record<keyof DashboardSettings['sections'], string> = {
@@ -55,6 +58,7 @@ export function DashboardCustomizer() {
   const [isOpen, setIsOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const { user } = useAuthStore()
+  const customFields = useCustomFields()
   const {
     settings,
     setSettings,
@@ -111,7 +115,15 @@ export function DashboardCustomizer() {
     }
   }
 
-  const visibleKpiCount = Object.values(settings.kpiCards).filter(Boolean).length
+  // Gross Profit only exists as a card when the workspace has that custom field, and
+  // (older saved settings lack the key) it counts as on unless explicitly switched off.
+  const hasGrossProfit = !!findGrossProfitField(customFields)
+  const kpiKeys = (Object.keys(KPI_LABELS) as Array<keyof DashboardSettings['kpiCards']>).filter(
+    (key) => key !== 'grossProfit' || hasGrossProfit
+  )
+  const isKpiVisible = (key: keyof DashboardSettings['kpiCards']) =>
+    key === 'grossProfit' ? settings.kpiCards.grossProfit !== false : !!settings.kpiCards[key]
+  const visibleKpiCount = kpiKeys.filter(isKpiVisible).length
   const visibleSectionCount = Object.values(settings.sections).filter(Boolean).length
   const visibleNavigationCount = Object.values(settings.navigation || {}).filter(Boolean).length
 
@@ -149,12 +161,12 @@ export function DashboardCustomizer() {
                     KPI Cards
                   </span>
                   <span className="text-xs text-muted-foreground font-normal">
-                    {visibleKpiCount}/{Object.keys(KPI_LABELS).length} visible
+                    {visibleKpiCount}/{kpiKeys.length} visible
                   </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {(Object.keys(KPI_LABELS) as Array<keyof DashboardSettings['kpiCards']>).map(
+                {kpiKeys.map(
                   (key) => (
                     <div
                       key={key}
@@ -164,7 +176,7 @@ export function DashboardCustomizer() {
                         htmlFor={`kpi-${key}`}
                         className="flex items-center gap-2 cursor-pointer"
                       >
-                        {settings.kpiCards[key] ? (
+                        {isKpiVisible(key) ? (
                           <Eye className="h-4 w-4 text-green-600" />
                         ) : (
                           <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -173,7 +185,7 @@ export function DashboardCustomizer() {
                       </Label>
                       <Switch
                         id={`kpi-${key}`}
-                        checked={settings.kpiCards[key]}
+                        checked={isKpiVisible(key)}
                         onCheckedChange={(checked: boolean) => updateKpiCard(key, checked)}
                       />
                     </div>

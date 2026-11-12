@@ -5,6 +5,7 @@ import {
   DollarSign,
   Target,
   Loader2,
+  Coins,
 } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { TopCustomers } from '@/components/dashboard/TopCustomers'
@@ -15,7 +16,7 @@ import { PipelineChart } from '@/components/charts/PipelineChart'
 import { SolutionPieChart } from '@/components/charts/SolutionPieChart'
 import { BubbleChart } from '@/components/charts/BubbleChart'
 import { useLeads } from '@/hooks/useLeads'
-import { useKPIs, useStageData, useSolutionData, useTopCustomers } from '@/hooks/useKPIs'
+import { useKPIs, useGrossProfit, useStageData, useSolutionData, useTopCustomers } from '@/hooks/useKPIs'
 import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
 import { useAuthStore } from '@/store/authStore'
 
@@ -23,6 +24,7 @@ export function SalesDashboard() {
   const { userProfile } = useAuthStore()
   const { leads, isLoading } = useLeads()
   const kpis = useKPIs(leads)
+  const grossProfit = useGrossProfit(leads)
   const stageData = useStageData(leads)
   const solutionData = useSolutionData(leads)
   const topCustomers = useTopCustomers(leads)
@@ -47,7 +49,11 @@ export function SalesDashboard() {
       </div>
 
       {/* KPI Cards - responsive grid */}
-      <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+      <div
+        className={`grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-3 ${
+          grossProfit.available ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
+        }`}
+      >
         <KPICard
           title="My Companies"
           value={kpis.totalCompanies}
@@ -79,8 +85,17 @@ export function SalesDashboard() {
           subtitle={`${kpis.avgProbability.toFixed(0)}% avg`}
           icon={<TrendingUp className="h-5 w-5 md:h-6 md:w-6" />}
           colorScheme="green"
-          className="col-span-2 md:col-span-1"
+          className={grossProfit.available ? undefined : 'col-span-2 md:col-span-1'}
         />
+        {grossProfit.available && (
+          <KPICard
+            title="Gross Profit"
+            value={formatCompactNumber(grossProfit.total)}
+            subtitle={formatCurrency(grossProfit.total)}
+            icon={<Coins className="h-5 w-5 md:h-6 md:w-6" />}
+            colorScheme="purple"
+          />
+        )}
       </div>
 
       {/* Quick access: upcoming/pending tasks */}
