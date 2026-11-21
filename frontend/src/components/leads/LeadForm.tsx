@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { CompanyPicker } from './CompanyPicker'
+import { DropdownField } from './DropdownField'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -140,18 +141,12 @@ function FieldGroupSection({
               )}
 
               {cf.type === 'select' && (
-                <Select
+                <DropdownField
+                  field={cf}
                   value={customFieldValues[cf.id] ?? ''}
-                  onValueChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
+                  onChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
                   disabled={isLoading}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>
-                    {cf.options.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               )}
 
               {cf.type === 'checkbox' && (

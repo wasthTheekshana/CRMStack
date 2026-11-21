@@ -24,10 +24,13 @@ import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
 import { exportToCSV, exportToPDF } from '@/lib/utils/exporters'
 import { SalesStage } from '@/types'
 import { useSalesStages, useStageColor, useBranding, useCustomFields } from '@/store/tenantStore'
+import { CategoryFilter } from '@/components/leads/CategoryFilter'
+import { ALL_CATEGORIES, findCategoryField, isLeadInCategory } from '@/lib/utils/leadFilters'
 
 export function ReportsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all')
   const [solutionFilter, setSolutionFilter] = useState<string>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES)
   const [searchTerm, setSearchTerm] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -40,6 +43,7 @@ export function ReportsPage() {
     () => Object.fromEntries(customFields.map(f => [f.id, f.name])),
     [customFields]
   )
+  const categoryField = useMemo(() => findCategoryField(customFields), [customFields])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -67,9 +71,10 @@ export function ReportsPage() {
       const matchesStage = stageFilter === 'all' || lead.salesStage === stageFilter
       const matchesSolution = solutionFilter === 'all' || lead.solution === solutionFilter
 
-      return matchesSearch && matchesStage && matchesSolution
+      return matchesSearch && matchesStage && matchesSolution &&
+        isLeadInCategory(lead, categoryField, categoryFilter)
     })
-  }, [leads, searchTerm, stageFilter, solutionFilter])
+  }, [leads, searchTerm, stageFilter, solutionFilter, categoryField, categoryFilter])
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -87,12 +92,15 @@ export function ReportsPage() {
     }
   }, [filteredLeads])
 
-  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== ''
+  const hasActiveFilters =
+    stageFilter !== 'all' || solutionFilter !== 'all' || searchTerm !== '' ||
+    (!!categoryField && categoryFilter !== ALL_CATEGORIES)
 
   const clearFilters = () => {
     setSearchTerm('')
     setStageFilter('all')
     setSolutionFilter('all')
+    setCategoryFilter(ALL_CATEGORIES)
   }
 
   const handleExportCSV = () => {
@@ -161,6 +169,18 @@ export function ReportsPage() {
               <SheetTitle>Filters</SheetTitle>
             </SheetHeader>
             <div className="space-y-4 mt-6">
+              {categoryField && (
+                <div className="space-y-2">
+                  <Label>{categoryField.name}</Label>
+                  <CategoryFilter
+                    field={categoryField}
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    showIcon={false}
+                    className="w-full"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Sales Stage</Label>
                 <Select value={stageFilter} onValueChange={setStageFilter}>
@@ -213,7 +233,7 @@ export function ReportsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={`grid gap-4 ${categoryField ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
             <div className="space-y-2">
               <Label>Search</Label>
               <Input
@@ -222,6 +242,18 @@ export function ReportsPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            {categoryField && (
+              <div className="space-y-2">
+                <Label>{categoryField.name}</Label>
+                <CategoryFilter
+                  field={categoryField}
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  showIcon={false}
+                  className="w-full"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Sales Stage</Label>
               <Select value={stageFilter} onValueChange={setStageFilter}>

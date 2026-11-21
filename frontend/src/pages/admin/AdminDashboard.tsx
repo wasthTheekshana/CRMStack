@@ -41,6 +41,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { CategoryFilter, categoryLabel } from '@/components/leads/CategoryFilter'
+import { ALL_CATEGORIES, findCategoryField, isLeadInCategory } from '@/lib/utils/leadFilters'
 
 export function AdminDashboard() {
   const { leads, isLoading } = useLeads()
@@ -49,6 +51,9 @@ export function AdminDashboard() {
   const { settings } = useDashboardStore()
   const salesStages = useSalesStages()
   const cfConfigs = useCustomFields()
+  // When the workspace has a "Category" dropdown field it replaces the sales-rep filter.
+  const categoryField = useMemo(() => findCategoryField(cfConfigs), [cfConfigs])
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES)
   const [teamKpiStage, setTeamKpiStage] = useState<string>('')
   const [teamKpiPeriod, setTeamKpiPeriod] = useState<TeamMemberStagePeriod>('last_month')
 
@@ -65,13 +70,13 @@ export function AdminDashboard() {
     fetchSalesUsers()
   }, [])
 
-  // Filter leads by selected salesperson
+  // Filter leads by the selected category (or, without a Category field, the salesperson)
   const filteredLeads = useMemo(() => {
-    if (selectedSalesPerson === 'all') {
-      return leads
-    }
-    return leads.filter(lead => lead.ownerId === selectedSalesPerson)
-  }, [leads, selectedSalesPerson])
+    return leads.filter(lead =>
+      (selectedSalesPerson === 'all' || lead.ownerId === selectedSalesPerson) &&
+      isLeadInCategory(lead, categoryField, categoryFilter)
+    )
+  }, [leads, selectedSalesPerson, categoryField, categoryFilter])
 
   // Get selected salesperson name for display
   const selectedSalesPersonName = useMemo(() => {
@@ -128,36 +133,40 @@ export function AdminDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Salesperson Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedSalesPerson} onValueChange={setSelectedSalesPerson}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by rep" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sales Reps</SelectItem>
-                {salesUsers.map((user) => (
-                  <SelectItem key={user.uid} value={user.uid}>
-                    {user.displayName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {categoryField ? (
+            <CategoryFilter field={categoryField} value={categoryFilter} onChange={setCategoryFilter} />
+          ) : (
+            /* Salesperson Filter (only for workspaces without a Category field) */
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedSalesPerson} onValueChange={setSelectedSalesPerson}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by rep" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sales Reps</SelectItem>
+                  {salesUsers.map((user) => (
+                    <SelectItem key={user.uid} value={user.uid}>
+                      {user.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <DashboardCustomizer />
         </div>
       </div>
 
       {/* Active Filter Badge */}
-      {selectedSalesPerson !== 'all' && (
+      {(selectedSalesPerson !== 'all' || (categoryField && categoryFilter !== ALL_CATEGORIES)) && (
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="gap-1">
             <Filter className="h-3 w-3" />
-            Showing: {selectedSalesPersonName}
+            Showing: {categoryField ? categoryLabel(categoryFilter) : selectedSalesPersonName}
           </Badge>
           <button
-            onClick={() => setSelectedSalesPerson('all')}
+            onClick={() => { setSelectedSalesPerson('all'); setCategoryFilter(ALL_CATEGORIES) }}
             className="text-xs text-muted-foreground hover:text-foreground underline"
           >
             Clear filter

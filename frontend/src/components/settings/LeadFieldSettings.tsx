@@ -3,6 +3,7 @@ import { Plus, Trash2, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
@@ -25,6 +26,17 @@ interface LeadFieldSettingsProps {
 }
 
 const FIELD_TYPES = ['text', 'textarea', 'number', 'select', 'date', 'checkbox', 'formula'] as const
+
+// What people see in the type picker. The stored value stays 'select' so existing fields keep working.
+const FIELD_TYPE_LABELS: Record<(typeof FIELD_TYPES)[number], string> = {
+  text:     'text',
+  textarea: 'long text',
+  number:   'number',
+  select:   'dropdown',
+  date:     'date',
+  checkbox: 'checkbox',
+  formula:  'formula',
+}
 
 function generateId(prefix = 'cf') {
   return `${prefix}${Date.now()}`
@@ -76,17 +88,24 @@ export function LeadFieldSettings({
     onChangeCustom(customFields.filter(f => f.id !== id))
   }
 
+  // Accepts one option or many at once (pasted, separated by new lines or commas).
   const addOption = (fieldId: string) => {
-    const val = newOption[fieldId]?.trim()
-    if (!val) return
     const field = customFields.find(f => f.id === fieldId)
     if (!field) return
-    if (field.options.includes(val)) {
-      toast.error('Option already exists')
+    const incoming = (newOption[fieldId] ?? '')
+      .split(/[\n,]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+    if (incoming.length === 0) return
+    const unique = [...new Set(incoming)]
+    const fresh = unique.filter(o => !field.options.includes(o))
+    if (fresh.length === 0) {
+      toast.error(unique.length === 1 ? 'Option already exists' : 'Those options already exist')
       return
     }
-    updateField(fieldId, { options: [...field.options, val] })
+    updateField(fieldId, { options: [...field.options, ...fresh] })
     setNewOption(p => ({ ...p, [fieldId]: '' }))
+    if (fresh.length < unique.length) toast.info(`${unique.length - fresh.length} already existed and was skipped`)
   }
 
   const removeOption = (fieldId: string, opt: string) => {
@@ -152,7 +171,7 @@ export function LeadFieldSettings({
             </SelectTrigger>
             <SelectContent>
               {FIELD_TYPES.map(t => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
+                <SelectItem key={t} value={t}>{FIELD_TYPE_LABELS[t]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -211,18 +230,22 @@ export function LeadFieldSettings({
               </div>
             ))}
           </div>
-          <div className="flex gap-2">
-            <Input
+          <div className="flex gap-2 items-start">
+            <Textarea
               value={newOption[field.id] ?? ''}
               onChange={e => setNewOption(p => ({ ...p, [field.id]: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') addOption(field.id) }}
-              placeholder="Add option…"
-              className="h-7 text-sm flex-1"
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addOption(field.id) } }}
+              placeholder="Add option… (paste several, one per line or separated by commas)"
+              rows={2}
+              className="text-sm flex-1 min-h-0 resize-y"
             />
             <Button size="sm" variant="outline" className="h-7" onClick={() => addOption(field.id)}>
               Add
             </Button>
           </div>
+          {field.options.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">No options yet. The dropdown will be empty until you add some.</p>
+          )}
         </CardContent>
       )}
 

@@ -17,14 +17,18 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useCustomFields } from '@/store/tenantStore'
 import {
+  ALL_CATEGORIES,
   EMPTY_DATE_RANGE,
+  findCategoryField,
   findCustomFieldByName,
   isDateRangeActive,
   isLeadDateInRange,
+  isLeadInCategory,
   sumNumberField,
   type DateRange,
 } from '@/lib/utils/leadFilters'
 import { DateRangeFilter } from '@/components/leads/DateRangeFilter'
+import { CategoryFilter, categoryLabel } from '@/components/leads/CategoryFilter'
 
 export function PipelinePage() {
   const [showNewLeadForm, setShowNewLeadForm] = useState(false)
@@ -40,6 +44,10 @@ export function PipelinePage() {
   const awardedField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of awarded', 'date'), [cfConfigs])
   const grossProfitField = useMemo(() => findCustomFieldByName(cfConfigs, 'Gross Profit', 'number'), [cfConfigs])
   const dateFiltersActive = isDateRangeActive(submissionRange) || isDateRangeActive(awardedRange)
+  // When the workspace has a "Category" dropdown field it replaces the sales-rep filter.
+  const categoryField = useMemo(() => findCategoryField(cfConfigs), [cfConfigs])
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES)
+  const categoryActive = !!categoryField && categoryFilter !== ALL_CATEGORIES
 
   // Fetch sales users on mount (only for admin)
   useEffect(() => {
@@ -60,12 +68,12 @@ export function PipelinePage() {
     const byOwner = !isAdmin || selectedSalesPerson === 'all'
       ? leads
       : leads.filter(lead => lead.ownerId === selectedSalesPerson)
-    if (!dateFiltersActive) return byOwner
     return byOwner.filter(lead =>
+      isLeadInCategory(lead, categoryField, categoryFilter) &&
       isLeadDateInRange(lead, submissionField, submissionRange) &&
       isLeadDateInRange(lead, awardedField, awardedRange)
     )
-  }, [leads, selectedSalesPerson, isAdmin, dateFiltersActive, submissionField, submissionRange, awardedField, awardedRange])
+  }, [leads, selectedSalesPerson, isAdmin, categoryField, categoryFilter, submissionField, submissionRange, awardedField, awardedRange])
 
   // Get selected salesperson name for display
   const selectedSalesPersonName = useMemo(() => {
@@ -115,8 +123,10 @@ export function PipelinePage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Salesperson Filter - Admin only */}
-          {isAdmin && (
+          {/* Category filter - replaces the salesperson filter when the workspace has a Category field */}
+          <CategoryFilter field={categoryField} value={categoryFilter} onChange={setCategoryFilter} />
+          {/* Salesperson Filter - Admin only, and only without a Category field */}
+          {isAdmin && !categoryField && (
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedSalesPerson} onValueChange={setSelectedSalesPerson}>
@@ -153,10 +163,24 @@ export function PipelinePage() {
         </div>
       )}
 
-      {/* Active Filter Badge & Stats (admins always; everyone while a date filter is on) */}
-      {(isAdmin || dateFiltersActive) && (
+      {/* Active Filter Badge & Stats (admins always; everyone while a date or category filter is on) */}
+      {(isAdmin || dateFiltersActive || categoryActive) && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <div className="flex items-center gap-2 flex-wrap">
+            {categoryActive && (
+              <>
+                <Badge variant="secondary" className="gap-1">
+                  <Filter className="h-3 w-3" />
+                  {categoryLabel(categoryFilter)}
+                </Badge>
+                <button
+                  onClick={() => setCategoryFilter(ALL_CATEGORIES)}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Clear filter
+                </button>
+              </>
+            )}
             {selectedSalesPerson !== 'all' && (
               <>
                 <Badge variant="secondary" className="gap-1">

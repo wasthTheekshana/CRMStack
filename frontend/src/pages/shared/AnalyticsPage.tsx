@@ -26,11 +26,14 @@ import { FunnelChart } from '@/components/charts/FunnelChart'
 import { useLeads } from '@/hooks/useLeads'
 import { useStageData, useSolutionData, useKPIs } from '@/hooks/useKPIs'
 import { formatCurrency, formatCompactNumber } from '@/lib/utils/formatters'
-import { useSalesStages, useWonStages } from '@/store/tenantStore'
+import { useSalesStages, useWonStages, useCustomFields } from '@/store/tenantStore'
+import { CategoryFilter } from '@/components/leads/CategoryFilter'
+import { ALL_CATEGORIES, findCategoryField, isLeadInCategory } from '@/lib/utils/leadFilters'
 
 export function AnalyticsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all')
   const [solutionFilter, setSolutionFilter] = useState<string>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES)
   const [includeClosedWon, setIncludeClosedWon] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedSolution, setSelectedSolution] = useState<string | null>(null)
@@ -38,6 +41,8 @@ export function AnalyticsPage() {
   const { leads, isLoading } = useLeads()
   const salesStages = useSalesStages()
   const wonStages = useWonStages()
+  const cfConfigs = useCustomFields()
+  const categoryField = useMemo(() => findCategoryField(cfConfigs), [cfConfigs])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -55,9 +60,9 @@ export function AnalyticsPage() {
     return leads.filter((lead) => {
       const matchesStage = stageFilter === 'all' || lead.salesStage === stageFilter
       const matchesSolution = solutionFilter === 'all' || lead.solution === solutionFilter
-      return matchesStage && matchesSolution
+      return matchesStage && matchesSolution && isLeadInCategory(lead, categoryField, categoryFilter)
     })
-  }, [leads, stageFilter, solutionFilter])
+  }, [leads, stageFilter, solutionFilter, categoryField, categoryFilter])
 
   // By default (toggle OFF) closed-won leads are excluded from the solution chart.
   // Toggle ON adds them back. Other charts are unaffected.
@@ -79,11 +84,14 @@ export function AnalyticsPage() {
     return solutionLeads.filter(l => (l.solution || 'Other') === selectedSolution)
   }, [selectedSolution, solutionData, solutionLeads])
 
-  const hasActiveFilters = stageFilter !== 'all' || solutionFilter !== 'all' || includeClosedWon
+  const hasActiveFilters =
+    stageFilter !== 'all' || solutionFilter !== 'all' || includeClosedWon ||
+    (!!categoryField && categoryFilter !== ALL_CATEGORIES)
 
   const clearFilters = () => {
     setStageFilter('all')
     setSolutionFilter('all')
+    setCategoryFilter(ALL_CATEGORIES)
     setIncludeClosedWon(false)
   }
 
@@ -121,6 +129,18 @@ export function AnalyticsPage() {
               <SheetTitle>Filters</SheetTitle>
             </SheetHeader>
             <div className="space-y-4 mt-6">
+              {categoryField && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{categoryField.name}</label>
+                  <CategoryFilter
+                    field={categoryField}
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    showIcon={false}
+                    className="w-full"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Sales Stage</label>
                 <Select value={stageFilter} onValueChange={setStageFilter}>
@@ -184,6 +204,7 @@ export function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
+            <CategoryFilter field={categoryField} value={categoryFilter} onChange={setCategoryFilter} />
             <Select value={stageFilter} onValueChange={setStageFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by stage" />

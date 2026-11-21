@@ -23,6 +23,23 @@ export function findCustomFieldByName(
   return cfConfigs.find((f) => f.type === type && f.name.trim().toLowerCase() === wanted)
 }
 
+/** Filter value meaning "every category". */
+export const ALL_CATEGORIES = 'all'
+/** Filter value meaning "leads that have no category chosen". */
+export const NO_CATEGORY = '__none__'
+
+/** The workspace's "Category" dropdown field, if it has one. */
+export function findCategoryField(cfConfigs: CustomFieldConfig[]): CustomFieldConfig | undefined {
+  return findCustomFieldByName(cfConfigs, 'Category', 'select')
+}
+
+/** True if the lead matches the chosen category ("all" and a missing field match everything). */
+export function isLeadInCategory(lead: Lead, field: CustomFieldConfig | undefined, value: string): boolean {
+  if (!field || value === ALL_CATEGORIES) return true
+  const stored = String(lead.customFields?.[field.id] ?? '').trim()
+  return value === NO_CATEGORY ? stored === '' : stored === value
+}
+
 // Date fields hold "YYYY-MM-DD" (date input / import) or an ISO timestamp. Only the
 // date part matters, and ISO dates compare correctly as plain strings.
 const ISO_DATE = /^(\d{4}-\d{2}-\d{2})/

@@ -39,6 +39,7 @@ import { ReassignOwnerSelect } from '@/components/leads/ReassignOwnerSelect'
 import { LeadExpiryPanel } from '@/components/leads/LeadExpiryPanel'
 import { getLeadCreatedAt } from '@/lib/utils/leadAge'
 import { ActivityTasksTab } from '@/components/leads/ActivityTasksTab'
+import { DropdownField } from '@/components/leads/DropdownField'
 
 import { cn } from '@/lib/utils/cn'
 
@@ -148,18 +149,12 @@ function FieldGroupSection({
               )}
 
               {cf.type === 'select' && (
-                <Select
+                <DropdownField
+                  field={cf}
                   value={customFieldValues[cf.id] ?? ''}
-                  onValueChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
+                  onChange={val => setCustomFieldValues(p => ({ ...p, [cf.id]: val }))}
                   disabled={isLoading}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>
-                    {cf.options.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               )}
 
               {cf.type === 'checkbox' && (

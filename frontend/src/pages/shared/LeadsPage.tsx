@@ -55,14 +55,18 @@ import { getSalesUsers } from '@/lib/api/collections'
 import type { User } from '@/types'
 import { periodStartDate, isOnOrAfter, type RelativePeriod } from '@/lib/utils/dateRange'
 import {
+  ALL_CATEGORIES,
   EMPTY_DATE_RANGE,
+  findCategoryField,
   findCustomFieldByName,
   isDateRangeActive,
   isLeadDateInRange,
+  isLeadInCategory,
   sumNumberField,
   type DateRange,
 } from '@/lib/utils/leadFilters'
 import { DateRangeFilter } from '@/components/leads/DateRangeFilter'
+import { CategoryFilter, categoryLabel } from '@/components/leads/CategoryFilter'
 
 type TimelineFilter = 'all' | RelativePeriod
 
@@ -86,6 +90,7 @@ export function LeadsPage() {
   const [ageFilter, setAgeFilter] = useState<string>('all')      // admin only
   const [expiryFilter, setExpiryFilter] = useState<string>('all') // admin only
   const [ownerFilter, setOwnerFilter] = useState<string>('all')       // admin only
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES)
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all') // admin only
   const [submissionRange, setSubmissionRange] = useState<DateRange>(EMPTY_DATE_RANGE)
   const [awardedRange, setAwardedRange] = useState<DateRange>(EMPTY_DATE_RANGE)
@@ -108,6 +113,8 @@ export function LeadsPage() {
   const submissionField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of submission', 'date'), [cfConfigs])
   const awardedField = useMemo(() => findCustomFieldByName(cfConfigs, 'Date of awarded', 'date'), [cfConfigs])
   const grossProfitField = useMemo(() => findCustomFieldByName(cfConfigs, 'Gross Profit', 'number'), [cfConfigs])
+  // When the workspace has a "Category" dropdown field it replaces the team-member filter.
+  const categoryField = useMemo(() => findCategoryField(cfConfigs), [cfConfigs])
   const { expiryMap, refetch: refetchExpiry } = useLeadExpiry()
 
   // Load saved views on mount
@@ -133,10 +140,11 @@ export function LeadsPage() {
     ageFilter,
     expiryFilter,
     ownerFilter,
+    categoryFilter,
     timelineFilter,
     submissionRange,
     awardedRange,
-  }), [searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, ownerFilter, timelineFilter, submissionRange, awardedRange])
+  }), [searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, ownerFilter, categoryFilter, timelineFilter, submissionRange, awardedRange])
 
   // Get unique solutions from actual leads data
   const uniqueSolutions = useMemo(() => {
@@ -179,6 +187,7 @@ export function LeadsPage() {
         (expiryFilter === 'none' && expiryData === undefined)
 
       const matchesOwner = ownerFilter === 'all' || lead.ownerId === ownerFilter
+      const matchesCategory = isLeadInCategory(lead, categoryField, categoryFilter)
 
       // Same tenant-aware creation date as the Lead Age filter above, not the raw DB
       // createdAt — otherwise the two filters disagree for tenants that override
@@ -189,9 +198,9 @@ export function LeadsPage() {
       const matchesAwarded = isLeadDateInRange(lead, awardedField, awardedRange)
 
       return matchesSearch && matchesStages && matchesSolution && matchesAge && matchesExpiry &&
-        matchesOwner && matchesTimeline && matchesSubmission && matchesAwarded
+        matchesOwner && matchesCategory && matchesTimeline && matchesSubmission && matchesAwarded
     })
-  }, [leads, searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs, ownerFilter, timelineFilter,
+  }, [leads, searchTerm, stageFilters, solutionFilter, ageFilter, expiryFilter, expiryMap, cfConfigs, ownerFilter, categoryField, categoryFilter, timelineFilter,
     submissionField, submissionRange, awardedField, awardedRange])
 
   // Totals for the currently filtered leads (admin-only summary, most useful when an owner is selected)
@@ -223,6 +232,7 @@ export function LeadsPage() {
     setAgeFilter('all')
     setExpiryFilter('all')
     setOwnerFilter('all')
+    setCategoryFilter(ALL_CATEGORIES)
     setTimelineFilter('all')
     setSubmissionRange(EMPTY_DATE_RANGE)
     setAwardedRange(EMPTY_DATE_RANGE)
@@ -232,6 +242,7 @@ export function LeadsPage() {
   const hasActiveFilters =
     stageFilters.length > 0 || solutionFilter !== 'all' || searchTerm !== '' ||
     ageFilter !== 'all' || expiryFilter !== 'all' || ownerFilter !== 'all' || timelineFilter !== 'all' ||
+    (!!categoryField && categoryFilter !== ALL_CATEGORIES) ||
     isDateRangeActive(submissionRange) || isDateRangeActive(awardedRange)
 
   const handleSaveView = async () => {
@@ -265,6 +276,7 @@ export function LeadsPage() {
     setAgeFilter(typeof f.ageFilter === 'string' ? f.ageFilter : 'all')
     setExpiryFilter(typeof f.expiryFilter === 'string' ? f.expiryFilter : 'all')
     setOwnerFilter(typeof f.ownerFilter === 'string' ? f.ownerFilter : 'all')
+    setCategoryFilter(typeof f.categoryFilter === 'string' ? f.categoryFilter : ALL_CATEGORIES)
     setTimelineFilter(
       typeof f.timelineFilter === 'string' ? (f.timelineFilter as TimelineFilter) : 'all'
     )
@@ -452,24 +464,38 @@ export function LeadsPage() {
                     onChange={r => { setAwardedRange(r); setSelectedIds(new Set()) }}
                   />
                 )}
+                {categoryField && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">{categoryField.name}</label>
+                    <CategoryFilter
+                      field={categoryField}
+                      value={categoryFilter}
+                      onChange={v => { setCategoryFilter(v); setSelectedIds(new Set()) }}
+                      showIcon={false}
+                      className="w-full"
+                    />
+                  </div>
+                )}
                 {isAdmin && (
                   <>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Team Member</label>
-                      <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setSelectedIds(new Set()) }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All Team Members" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Team Members</SelectItem>
-                          {salesUsers.map((user) => (
-                            <SelectItem key={user.uid} value={user.uid}>
-                              {user.displayName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {!categoryField && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Team Member</label>
+                        <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setSelectedIds(new Set()) }}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="All Team Members" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Team Members</SelectItem>
+                            {salesUsers.map((user) => (
+                              <SelectItem key={user.uid} value={user.uid}>
+                                {user.displayName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Timeline</label>
                       <Select
@@ -567,21 +593,30 @@ export function LeadsPage() {
               ))}
             </SelectContent>
           </Select>
+          <CategoryFilter
+            field={categoryField}
+            value={categoryFilter}
+            onChange={v => { setCategoryFilter(v); setSelectedIds(new Set()) }}
+            showIcon={false}
+            className="w-[170px]"
+          />
           {isAdmin && (
             <>
-              <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setSelectedIds(new Set()) }}>
-                <SelectTrigger className="w-[170px]">
-                  <SelectValue placeholder="Filter by team member" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Team Members</SelectItem>
-                  {salesUsers.map((user) => (
-                    <SelectItem key={user.uid} value={user.uid}>
-                      {user.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!categoryField && (
+                <Select value={ownerFilter} onValueChange={v => { setOwnerFilter(v); setSelectedIds(new Set()) }}>
+                  <SelectTrigger className="w-[170px]">
+                    <SelectValue placeholder="Filter by team member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Team Members</SelectItem>
+                    {salesUsers.map((user) => (
+                      <SelectItem key={user.uid} value={user.uid}>
+                        {user.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Select
                 value={timelineFilter}
                 onValueChange={v => { setTimelineFilter(v as TimelineFilter); setSelectedIds(new Set()) }}
@@ -651,7 +686,9 @@ export function LeadsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-lg border bg-card px-4 py-3">
           <Badge variant="secondary" className="gap-1 w-fit">
             <Filter className="h-3 w-3" />
-            {isAdmin && ownerFilter !== 'all' ? ownerFilterName : 'Filtered results'}
+            {categoryField && categoryFilter !== ALL_CATEGORIES
+              ? categoryLabel(categoryFilter)
+              : isAdmin && ownerFilter !== 'all' ? ownerFilterName : 'Filtered results'}
           </Badge>
           <div className="flex items-center gap-4 text-sm flex-wrap">
             <div className="flex items-center gap-1">
