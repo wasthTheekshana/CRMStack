@@ -41,6 +41,17 @@ export async function isUserActive(id: string): Promise<boolean> {
   return result.rows[0]?.is_active === true;
 }
 
+// Current role and active flag, read on every authenticated request so that a role change
+// or deactivation takes effect immediately instead of waiting for the JWT to expire.
+export async function getUserAuthState(
+  id: string,
+  tenantId: string
+): Promise<{ isActive: boolean; role: 'admin' | 'sales' } | null> {
+  const result = await query('SELECT is_active, role FROM users WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+  const row = result.rows[0];
+  return row ? { isActive: row.is_active === true, role: row.role as 'admin' | 'sales' } : null;
+}
+
 export async function findUserById(id: string) {
   const result = await query(
     'SELECT id, email, username, display_name, role, is_active, tenant_id, created_at FROM users WHERE id = $1',

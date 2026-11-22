@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { findAllTargets, upsertTarget, updateTarget, removeTarget } from '../models/salesTargetModel';
+import { findUserByIdInTenant } from '../models/userModel';
 
 export async function listTargets(req: Request, res: Response) {
   try {
@@ -17,9 +18,23 @@ export async function createTargetHandler(req: Request, res: Response) {
     res.status(400).json({ error: 'year and month required' });
     return;
   }
-  const actualOwnerId    = req.user!.role === 'sales' ? req.user!.userId : (ownerId || req.user!.userId);
-  const actualOwnerEmail = req.user!.role === 'sales' ? req.user!.email  : (ownerEmail || req.user!.email);
+  let actualOwnerId    = req.user!.role === 'sales' ? req.user!.userId : (ownerId || req.user!.userId);
+  let actualOwnerEmail = req.user!.role === 'sales' ? req.user!.email  : (ownerEmail || req.user!.email);
   try {
+    // An admin may set a target for another user, but only a user of their own tenant.
+    if (req.user!.role !== 'sales' && actualOwnerId !== req.user!.userId) {
+      if (typeof actualOwnerId !== 'string') {
+        res.status(400).json({ error: 'ownerId must be a user id' });
+        return;
+      }
+      const owner = await findUserByIdInTenant(actualOwnerId, req.user!.tenantId);
+      if (!owner) {
+        res.status(400).json({ error: 'ownerId must belong to a user in your workspace' });
+        return;
+      }
+      actualOwnerId = owner.id;
+      actualOwnerEmail = owner.email;
+    }
     const result = await upsertTarget({
       year, month,
       target:      target || 0,
@@ -29,6 +44,10 @@ export async function createTargetHandler(req: Request, res: Response) {
       ownerName:   ownerName || '',
       tenantId:    req.user!.tenantId,
     });
+    if (!result) {
+      res.status(409).json({ error: 'A target for this user and month already exists' });
+      return;
+    }
     res.status(201).json(result);
   } catch (err) {
     console.error(err);

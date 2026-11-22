@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import type { PoolClient } from 'pg';
 import {
   findAllUsers,
   findSalesUsers,
@@ -122,14 +123,42 @@ export async function createUserHandler(req: Request, res: Response) {
 }
 
 export async function updateUserHandler(req: Request, res: Response) {
-  const { displayName, email, role, isActive, password } = req.body;
+  const { displayName, email, role, isActive, password, currentPassword } = req.body;
   if (password !== undefined && (typeof password !== 'string' || password.length < 8 || password.length > 128)) {
     res.status(400).json({ error: 'Password must be between 8 and 128 characters' });
     return;
   }
+  // Changing your own password requires proof of the current one, so a hijacked or unattended
+  // session cannot silently take over the account. (An admin resetting someone else's password
+  // is a separate, intentional admin action and does not need the target's current password.)
+  if (password && req.params.id === req.user!.userId) {
+    if (typeof currentPassword !== 'string' || !currentPassword) {
+      res.status(400).json({ error: 'Current password is required to change your password' });
+      return;
+    }
+    try {
+      const own = await query('SELECT password_hash FROM users WHERE id = $1 AND tenant_id = $2', [req.user!.userId, req.user!.tenantId]);
+      const currentOk = own.rows[0] ? await bcrypt.compare(currentPassword, own.rows[0].password_hash as string) : false;
+      if (!currentOk) {
+        res.status(401).json({ error: 'Current password is incorrect' });
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Server error' });
+      return;
+    }
+  }
   // Hash before acquiring the DB lock — bcrypt is CPU-bound, not DB-bound
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
-  const client = await pool.connect();
+  let client: PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error(err);
+    res.status(503).json({ error: 'Service temporarily unavailable' });
+    return;
+  }
   try {
     await client.query('BEGIN');
     // Verify target user exists and belongs to the requester's tenant
@@ -187,6 +216,9 @@ export async function updateUserHandler(req: Request, res: Response) {
     }
     if (passwordHash) {
       await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, req.params.id]);
+      // A password set by an admin must also invalidate any outstanding reset link, otherwise
+      // someone holding an older link could overwrite the credential that was just set.
+      await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1 AND used_at IS NULL', [req.params.id]);
     }
     const updateResult = await client.query(
       `UPDATE users

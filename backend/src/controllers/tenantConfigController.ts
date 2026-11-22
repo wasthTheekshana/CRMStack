@@ -44,6 +44,15 @@ export async function updateConfig(req: Request, res: Response) {
     fieldGroups, dashboardWidgets, coreFieldVisibility, branding,
   } = req.body;
 
+  // Shape checks first: the validations below dereference these fields outside any try/catch, and
+  // an uncaught throw in an async Express 4 handler is an unhandled rejection.
+  const isPlainObject = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
+  const invalidList = (v: unknown) => v != null && (!Array.isArray(v) || !v.every(isPlainObject));
+  if (invalidList(salesStages) || invalidList(customFields) || invalidList(dashboardWidgets)) {
+    res.status(400).json({ error: 'salesStages, customFields and dashboardWidgets must be arrays of objects' });
+    return;
+  }
+
   // Validate that exactly one stage has isWon: true
   if (salesStages != null) {
     const wonStages = (salesStages as { isWon?: boolean }[]).filter(s => s.isWon);
@@ -59,7 +68,14 @@ export async function updateConfig(req: Request, res: Response) {
       (f: FieldConfig) => f.type === 'formula' && f.formula
     )
     if (formulaFields.length > 0) {
-      const cycle = detectCircularRefs(formulaFields)
+      let cycle: string[] | null
+      try {
+        cycle = detectCircularRefs(formulaFields)
+      } catch {
+        // e.g. a reference chain deep enough to overflow the recursive search
+        res.status(400).json({ error: 'Formula references are too deeply nested' })
+        return
+      }
       if (cycle) {
         res.status(400).json({
           error: `Circular reference detected: ${cycle.join(' → ')}`

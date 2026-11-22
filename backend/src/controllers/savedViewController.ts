@@ -13,7 +13,7 @@ export async function listSavedViews(req: Request, res: Response) {
 
 export async function createSavedViewHandler(req: Request, res: Response) {
   const { name, filters } = req.body
-  if (!name?.trim()) {
+  if (typeof name !== 'string' || !name.trim()) {
     res.status(400).json({ error: 'name is required' })
     return
   }

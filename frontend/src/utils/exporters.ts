@@ -48,7 +48,8 @@ export function exportToCSV(
     }
   })
 
-  const csv = Papa.unparse(data)
+  // escapeFormulae prefixes cells that start with = + - @ so a spreadsheet will not evaluate them
+  const csv = Papa.unparse(data, { escapeFormulae: true })
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

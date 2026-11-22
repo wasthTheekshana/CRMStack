@@ -31,7 +31,7 @@ export async function getCompany(req: Request, res: Response) {
 
 export async function createCompanyHandler(req: Request, res: Response) {
   const { name, website, phone, address, notes } = req.body
-  if (!name?.trim()) {
+  if (typeof name !== 'string' || !name.trim()) {
     res.status(400).json({ error: 'name is required' })
     return
   }

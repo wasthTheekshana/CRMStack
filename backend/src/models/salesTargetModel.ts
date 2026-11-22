@@ -44,10 +44,13 @@ export async function upsertTarget(data: {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
      ON CONFLICT (year, month, owner_id) DO UPDATE
        SET target = $3, achievement = $4, updated_at = NOW()
+       WHERE sales_targets.tenant_id = EXCLUDED.tenant_id
      RETURNING *`,
     [data.year, data.month, data.target, data.achievement, data.ownerId, data.ownerEmail, data.ownerName, data.tenantId]
   );
-  return mapTarget(result.rows[0]);
+  // The unique key has no tenant_id, so a conflicting row can belong to another tenant; the WHERE
+  // above then refuses the update and no row is returned.
+  return result.rows[0] ? mapTarget(result.rows[0]) : null;
 }
 
 // ownerId = undefined → admin, can update any target in the tenant

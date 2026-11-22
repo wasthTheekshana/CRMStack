@@ -44,6 +44,17 @@ export async function getTenantStatus(id: string): Promise<Tenant['status'] | nu
   return result.rows[0] ? (result.rows[0].status as Tenant['status']) : null;
 }
 
+// Status plus trial end, for request-time access checks (expiry must not depend on the daily cron).
+export async function getTenantAccess(
+  id: string
+): Promise<{ status: Tenant['status']; trialEndsAt: Date | null } | null> {
+  const result = await query('SELECT status, trial_ends_at FROM tenants WHERE id = $1', [id]);
+  const row = result.rows[0];
+  return row
+    ? { status: row.status as Tenant['status'], trialEndsAt: (row.trial_ends_at as Date | null) ?? null }
+    : null;
+}
+
 export async function findTenantById(id: string): Promise<Tenant | null> {
   const result = await query(
     'SELECT * FROM tenants WHERE id = $1',

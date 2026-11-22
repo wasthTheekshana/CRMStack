@@ -4,6 +4,7 @@ import { createLead, updateLead } from '../models/leadModel';
 import { findOrCreateCompany } from '../models/companyModel';
 import { findConfigByTenantId, DEFAULT_STAGES, DEFAULT_SOLUTIONS } from '../models/tenantConfigModel';
 import { findUserByEmailInTenant, findUserByIdInTenant } from '../models/userModel';
+import { findTenantById, countActiveLeads } from '../models/tenantModel';
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -263,9 +264,18 @@ export async function importConfirm(req: Request, res: Response) {
     const stages = config?.salesStages ?? DEFAULT_STAGES;
     const stageNames = stages.map(s => s.name);
 
+    // Plan lead limit: creating leads through import must respect the same cap as POST /leads.
+    const leadLimit = (await findTenantById(tenantId))?.leadLimit ?? null;
+    let activeLeads = leadLimit != null ? await countActiveLeads(tenantId) : 0;
+
     for (const row of rows) {
       if (row.action === 'skip') {
         skipped++;
+        continue;
+      }
+
+      if (row.action === 'create' && leadLimit != null && activeLeads >= leadLimit) {
+        errors.push({ row: row.index, reason: `Lead limit reached for your plan (${leadLimit})` });
         continue;
       }
 
@@ -298,6 +308,7 @@ export async function importConfirm(req: Request, res: Response) {
             tenantId,
             customFields: mergeLegacyIntoCustomFields(row.data),
           });
+          activeLeads++;
           // Create contact records in the contacts table so they appear on the Contacts page.
           // Skip contacts with no name. Use INSERT ... ON CONFLICT DO NOTHING to avoid
           // duplicates if the same Excel is imported twice.

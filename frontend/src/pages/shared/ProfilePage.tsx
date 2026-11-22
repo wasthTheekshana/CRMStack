@@ -98,8 +98,8 @@ export function ProfilePage() {
 
     try {
       if (!user?.id) throw new Error('No user logged in')
-      // API verifies old password server-side when password field is sent
-      await updateUserProfile(user.id, { password: newPassword } as Parameters<typeof updateUserProfile>[1])
+      // The API verifies the current password server-side when you change your own password
+      await updateUserProfile(user.id, { password: newPassword, currentPassword } as Parameters<typeof updateUserProfile>[1])
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -107,7 +107,12 @@ export function ProfilePage() {
       setTimeout(() => setPasswordSuccess(false), 5000)
     } catch (error: unknown) {
       console.error('Error changing password:', error)
-      setPasswordError('Failed to change password. Please try again.')
+      const msg = error instanceof Error ? error.message : ''
+      setPasswordError(
+        msg.toLowerCase().includes('current password is incorrect')
+          ? 'Your current password is incorrect.'
+          : 'Failed to change password. Please try again.'
+      )
     } finally {
       setIsChangingPassword(false)
     }

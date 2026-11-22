@@ -49,10 +49,10 @@ const mapExpiry = (row: Record<string, unknown>): LeadExpiry => ({
   updatedAt:       row.updated_at      as string,
 });
 
-export async function getExpiry(leadId: string): Promise<LeadExpiry | null> {
+export async function getExpiry(leadId: string, tenantId: string): Promise<LeadExpiry | null> {
   const result = await query(
-    'SELECT * FROM lead_expiry WHERE lead_id = $1',
-    [leadId]
+    'SELECT * FROM lead_expiry WHERE lead_id = $1 AND tenant_id = $2',
+    [leadId, tenantId]
   );
   return result.rows[0] ? mapExpiry(result.rows[0]) : null;
 }
@@ -88,13 +88,25 @@ export async function deleteExpiry(leadId: string, tenantId: string): Promise<vo
   );
 }
 
+// When ownerId is given (sales users), only that user's own, non-deleted leads are returned,
+// matching the owner scoping that the lead list and getLead apply.
 export async function getExpiryByTenant(
-  tenantId: string
+  tenantId: string,
+  ownerId?: string
 ): Promise<{ leadId: string; expiryDate: string }[]> {
-  const result = await query(
-    'SELECT lead_id, expiry_date FROM lead_expiry WHERE tenant_id = $1',
-    [tenantId]
-  );
+  const result = ownerId
+    ? await query(
+        `SELECT le.lead_id, le.expiry_date
+           FROM lead_expiry le
+           JOIN leads l ON l.id = le.lead_id
+          WHERE le.tenant_id = $1 AND l.tenant_id = $1
+            AND l.owner_id = $2 AND l.is_deleted = FALSE`,
+        [tenantId, ownerId]
+      )
+    : await query(
+        'SELECT lead_id, expiry_date FROM lead_expiry WHERE tenant_id = $1',
+        [tenantId]
+      );
   return result.rows.map(row => ({
     leadId:     row.lead_id as string,
     expiryDate: toDateString(row.expiry_date),

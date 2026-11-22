@@ -355,7 +355,10 @@ export async function exportTenantCSV(req: Request, res: Response) {
        FROM leads WHERE tenant_id = $1 AND is_deleted = FALSE ORDER BY created_at DESC`, [id]
     );
     const escape = (v: unknown) => {
-      const s = v == null ? '' : String(v);
+      let s = v == null ? '' : String(v);
+      // CSV injection: a cell starting with = + - @ (or tab/CR) can be evaluated as a formula when
+      // the file is opened in a spreadsheet. Prefix such cells; plain numbers are left unchanged.
+      if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const primaryContact = (contacts: Array<{ name?: string; phone?: string; isPrimary?: boolean }>) => {
@@ -451,6 +454,8 @@ export async function resetUserPassword(req: Request, res: Response) {
       }
       res.status(403).json({ error: 'Password can only be changed for admin users' }); return;
     }
+    // Invalidate any outstanding reset link so it cannot overwrite the password just set.
+    await query('DELETE FROM password_reset_tokens WHERE user_id = $1 AND used_at IS NULL', [id]);
     res.json({ updated: true, userId: result.rows[0].id, email: result.rows[0].email,
                displayName: result.rows[0].display_name });
   } catch (err) {

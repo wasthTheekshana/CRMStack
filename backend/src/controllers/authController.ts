@@ -168,15 +168,16 @@ export async function forgotPassword(req: Request, res: Response) {
   }
 
   try {
+    // Email is unique only per tenant, so the same address can belong to accounts in several
+    // tenants. Handle every active match instead of an arbitrary first row; otherwise one tenant's
+    // account could shadow another's and make its reset unreachable.
     const result = await query(
-      'SELECT id, email, tenant_id FROM users WHERE LOWER(email) = LOWER($1)',
+      `SELECT id, email, tenant_id FROM users
+        WHERE LOWER(email) = LOWER($1) AND is_active = TRUE
+        ORDER BY created_at LIMIT 5`,
       [email]
     );
-    const user = result.rows[0];
-    if (!user) { res.json(SUCCESS); return; }
-
-    const tenant = await findTenantById(user.tenant_id);
-    if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) { res.json(SUCCESS); return; }
+    if (!result.rows.length) { res.json(SUCCESS); return; }
 
     const baseUrl = process.env.APP_BASE_URL;
     if (!baseUrl) {
@@ -185,13 +186,24 @@ export async function forgotPassword(req: Request, res: Response) {
       return;
     }
 
-    const rawToken = await createResetToken(user.id);
-    const resetLink = `${baseUrl}/reset-password?token=${rawToken}`;
+    let sent = 0;
+    let failed = 0;
+    for (const user of result.rows) {
+      const tenant = await findTenantById(user.tenant_id);
+      if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) continue;
 
-    try {
-      await sendPasswordResetEmail(user.email, resetLink);
-    } catch (smtpErr) {
-      console.error('SMTP error:', smtpErr);
+      const rawToken = await createResetToken(user.id);
+      const resetLink = `${baseUrl}/reset-password?token=${rawToken}`;
+      try {
+        await sendPasswordResetEmail(user.email, resetLink);
+        sent++;
+      } catch (smtpErr) {
+        console.error('SMTP error:', smtpErr);
+        failed++;
+      }
+    }
+
+    if (failed > 0 && sent === 0) {
       res.status(500).json({ error: 'Failed to send email. Please try again.' });
       return;
     }

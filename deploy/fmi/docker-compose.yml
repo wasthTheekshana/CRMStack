@@ -48,6 +48,9 @@ services:
       DB_HOST: dbfmi
       DB_PORT: 5432
       NODE_ENV: production
+      # Two proxies sit in front of the backend (shared nginx -> crm-fmi-web nginx -> backend).
+      # With the default of 1, every client shares one rate-limit bucket (req.ip = the proxy address).
+      TRUST_PROXY_HOPS: 2
     networks:
       - fmi-net
     security_opt:

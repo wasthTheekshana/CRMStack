@@ -18,7 +18,7 @@ import {
   notifyLeadRestored,
 } from '../services/notificationService';
 import { createActivity } from '../models/activityModel';
-import { countActiveLeads } from '../models/tenantModel';
+import { countActiveLeads, findTenantById } from '../models/tenantModel';
 import { FieldConfig, findConfigByTenantId } from '../models/tenantConfigModel';
 import { findCompanyById, findOrCreateCompany } from '../models/companyModel';
 import { pool } from '../config/db';
@@ -197,8 +197,28 @@ export async function createLeadHandler(req: Request, res: Response) {
     return;
   }
 
-  const actualOwnerId    = req.user!.role === 'sales' ? req.user!.userId : (ownerId || req.user!.userId);
-  const actualOwnerEmail = req.user!.role === 'sales' ? req.user!.email  : (ownerEmail || req.user!.email);
+  let actualOwnerId    = req.user!.role === 'sales' ? req.user!.userId : (ownerId || req.user!.userId);
+  let actualOwnerEmail = req.user!.role === 'sales' ? req.user!.email  : (ownerEmail || req.user!.email);
+
+  // An admin may assign the lead to another user, but only an active user of their own tenant.
+  // The owner email is taken from that user, not from the request body.
+  if (req.user!.role !== 'sales' && actualOwnerId !== req.user!.userId) {
+    try {
+      const owner = typeof actualOwnerId === 'string'
+        ? await findUserByIdInTenant(actualOwnerId, req.user!.tenantId)
+        : null
+      if (!owner || !owner.isActive) {
+        res.status(400).json({ error: 'ownerId must be an active user in your workspace' })
+        return
+      }
+      actualOwnerId = owner.id
+      actualOwnerEmail = owner.email
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ error: 'Server error' })
+      return
+    }
+  }
 
   if (companyId) {
     try {
@@ -239,7 +259,10 @@ export async function createLeadHandler(req: Request, res: Response) {
     }
 
     let lead
-    if (req.tenant?.leadLimit != null) {
+    // req.tenant is never populated on authenticated routes, so the plan limit is read from the
+    // tenant row; otherwise the limit check below can never run.
+    const leadLimit = (await findTenantById(req.user!.tenantId))?.leadLimit ?? null
+    if (leadLimit != null) {
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
@@ -250,12 +273,12 @@ export async function createLeadHandler(req: Request, res: Response) {
           [req.user!.tenantId]
         )
         const currentCount = parseInt(countResult.rows[0].count, 10)
-        if (currentCount >= req.tenant.leadLimit) {
+        if (currentCount >= leadLimit) {
           await client.query('ROLLBACK')
           res.status(403).json({
             error: 'LEAD_LIMIT_REACHED',
-            message: `Your plan allows up to ${req.tenant.leadLimit} leads. Please upgrade to add more.`,
-            limit: req.tenant.leadLimit,
+            message: `Your plan allows up to ${leadLimit} leads. Please upgrade to add more.`,
+            limit: leadLimit,
             current: currentCount,
           })
           return
@@ -337,8 +360,20 @@ export async function updateLeadHandler(req: Request, res: Response) {
 
     // Non-admins cannot reassign lead ownership — silently ignore any ownerId/ownerEmail
     // they send (frontend always includes the full lead object, including current owner)
-    const resolvedOwnerId    = req.user!.role === 'admin' ? ownerId    : undefined;
-    const resolvedOwnerEmail = req.user!.role === 'admin' ? ownerEmail : undefined;
+    let resolvedOwnerId    = req.user!.role === 'admin' ? ownerId    : undefined;
+    let resolvedOwnerEmail = req.user!.role === 'admin' ? ownerEmail : undefined;
+
+    // A changed owner must be an active user of the admin's own tenant; the email comes from that user.
+    if (resolvedOwnerId !== undefined && resolvedOwnerId !== existingLead.ownerId) {
+      const newOwner = typeof resolvedOwnerId === 'string'
+        ? await findUserByIdInTenant(resolvedOwnerId, req.user!.tenantId)
+        : null;
+      if (!newOwner || !newOwner.isActive) {
+        res.status(400).json({ error: 'ownerId must be an active user in your workspace' }); return;
+      }
+      resolvedOwnerId = newOwner.id;
+      resolvedOwnerEmail = newOwner.email;
+    }
 
     const validationError = validateLeadFields(req.body);
     if (validationError) {

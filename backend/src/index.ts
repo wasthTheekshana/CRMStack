@@ -19,8 +19,18 @@ if (missing.length > 0) {
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
-// Trust the nginx proxy (needed for rate-limiter IP detection behind reverse proxy)
-app.set('trust proxy', 1);
+// A rejected promise inside an async Express 4 handler is never routed to an error handler.
+// Log it instead of letting Node terminate the single process that serves every tenant.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
+// Trust the nginx proxy (needed for rate-limiter IP detection behind reverse proxy).
+// TRUST_PROXY_HOPS must equal the number of proxies in front of the backend (default 1;
+// the FMI stack has two: shared nginx -> web nginx -> backend). A wrong value makes
+// req.ip the proxy address, which collapses every per-IP rate limit into one bucket.
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '1', 10);
+app.set('trust proxy', Number.isInteger(trustProxyHops) && trustProxyHops >= 0 ? trustProxyHops : 1);
 
 // H3: Security headers
 app.use(helmet());
@@ -58,6 +68,17 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', db: 'postgresql' }));
 app.use('/api', apiRoutes);
+
+// Final error handler for synchronous errors and errors passed to next().
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err && err.message === 'Not allowed by CORS') {
+    res.status(403).json({ error: 'Origin not allowed' });
+    return;
+  }
+  console.error('[unhandled route error]', err);
+  if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+});
 
 startScheduler();
 

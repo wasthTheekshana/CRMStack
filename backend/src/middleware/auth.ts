@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { getTenantStatus } from '../models/tenantModel';
-import { isUserActive } from '../models/userModel';
+import { getTenantAccess } from '../models/tenantModel';
+import { getUserAuthState } from '../models/userModel';
 
 export interface AuthPayload {
   userId:   string;
@@ -42,8 +42,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     // Check tenant status directly from DB so suspension is enforced immediately,
     // regardless of whether resolveTenant ran (it doesn't run on API routes).
-    const status = await getTenantStatus(payload.tenantId);
-    if (status !== 'active' && status !== 'trial') {
+    const access = await getTenantAccess(payload.tenantId);
+    if (!access || (access.status !== 'active' && access.status !== 'trial')) {
       res.status(403).json({
         error: 'TENANT_SUSPENDED',
         message: 'Your account has been suspended. Please contact support.',
@@ -51,12 +51,25 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
+    // Trial expiry is enforced at request time; the daily job only flips the stored status.
+    if (access.status === 'trial' && access.trialEndsAt && access.trialEndsAt < new Date()) {
+      res.status(402).json({
+        error: 'TRIAL_EXPIRED',
+        message: 'Your trial has ended. Please contact support to upgrade your plan.',
+      });
+      return;
+    }
+
     // Enforce account deactivation immediately: a deactivated user must not be
     // able to keep using a JWT that was issued before they were deactivated.
-    if (!(await isUserActive(payload.userId))) {
+    // The role is also re-read from the database so a demotion takes effect immediately
+    // instead of the stale role claim in the JWT staying valid until it expires.
+    const userState = await getUserAuthState(payload.userId, payload.tenantId);
+    if (!userState?.isActive) {
       res.status(403).json({ error: 'ACCOUNT_DEACTIVATED', message: 'Your account has been deactivated.' });
       return;
     }
+    req.user = { ...payload, role: userState.role };
 
     next();
   } catch {

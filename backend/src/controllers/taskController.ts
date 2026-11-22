@@ -35,6 +35,15 @@ export async function createTaskHandler(req: Request, res: Response) {
     return;
   }
   try {
+    // Same rule as the read path: the lead must exist in the caller's tenant and a sales user
+    // may only attach a task to a lead they own.
+    if (leadId) {
+      const leadOwnerId = typeof leadId === 'string' ? await getLeadOwnerId(leadId, req.user!.tenantId) : null;
+      if (!leadOwnerId || (req.user!.role === 'sales' && leadOwnerId !== req.user!.userId)) {
+        res.status(400).json({ error: 'Invalid leadId' });
+        return;
+      }
+    }
     const task = await createTask({
       leadId:      leadId || null,
       title,

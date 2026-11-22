@@ -16,7 +16,7 @@ export const createUserProfile = (data: Partial<User> & { password: string }) =>
     body: JSON.stringify(data),
   });
 
-export const updateUserProfile = (id: string, data: Partial<User> & { password?: string }) =>
+export const updateUserProfile = (id: string, data: Partial<User> & { password?: string; currentPassword?: string }) =>
   apiFetch<User>(`/api/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
