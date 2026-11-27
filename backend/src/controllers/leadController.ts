@@ -202,7 +202,10 @@ export async function createLeadHandler(req: Request, res: Response) {
 
   if (companyId) {
     try {
-      const company = await findCompanyById(companyId, req.user!.tenantId, actualOwnerId)
+      // Admins may attach a lead to any company in the tenant (same rule as updateLeadHandler);
+      // reps are limited to their own companies.
+      const isAdmin = req.user!.role === 'admin'
+      const company = await findCompanyById(companyId, req.user!.tenantId, isAdmin ? undefined : actualOwnerId)
       if (!company) {
         res.status(400).json({ error: 'Invalid companyId' })
         return
