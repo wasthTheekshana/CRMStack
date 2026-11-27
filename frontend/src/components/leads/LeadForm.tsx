@@ -186,15 +186,16 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
   const coreFieldVis      = useCoreFieldVisibility()
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
 
-  // Default required date fields (e.g. "Created Date") to today whenever the form opens,
-  // without overwriting anything the user has already entered.
+  // Default the "Created Date" field, and any required date field, to today whenever the form
+  // opens, without overwriting anything the user has already entered.
   useEffect(() => {
     if (!open) return
     const now = new Date()
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const defaults: Record<string, string> = {}
     for (const cf of customFields) {
-      if (cf.type === 'date' && cf.required) defaults[cf.id] = today
+      if (cf.type !== 'date') continue
+      if (cf.required || cf.name.trim().toLowerCase() === 'created date') defaults[cf.id] = today
     }
     if (Object.keys(defaults).length > 0) {
       setCustomFieldValues(prev => ({ ...defaults, ...prev }))
