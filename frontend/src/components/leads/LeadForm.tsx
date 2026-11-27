@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { CompanyPicker } from './CompanyPicker'
 import { DropdownField } from './DropdownField'
 import { useForm } from 'react-hook-form'
@@ -180,6 +180,21 @@ export function LeadForm({ open, onClose, onSave }: LeadFormProps) {
   const fieldGroups       = useFieldGroups()
   const coreFieldVis      = useCoreFieldVisibility()
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
+
+  // Default required date fields (e.g. "Created Date") to today whenever the form opens,
+  // without overwriting anything the user has already entered.
+  useEffect(() => {
+    if (!open) return
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const defaults: Record<string, string> = {}
+    for (const cf of customFields) {
+      if (cf.type === 'date' && cf.required) defaults[cf.id] = today
+    }
+    if (Object.keys(defaults).length > 0) {
+      setCustomFieldValues(prev => ({ ...defaults, ...prev }))
+    }
+  }, [open, customFields])
 
   const [companyId, setCompanyId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
